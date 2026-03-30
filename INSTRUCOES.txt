@@ -1,0 +1,13 @@
+COMO ARRANCAR COM A TUA APP (Flash Li Sponsors)
+===================================================
+
+1. Cria uma conta no GitHub (github.com) e faz upload desta pasta inteira para lá (como um repositório).
+2. Cria uma conta no Vercel (vercel.com) e liga o teu GitHub.
+3. Importa este projeto no Vercel.
+4. Cria uma conta na Resend (resend.com) para teres o serviço de emails gratuito. Eles vão dar-te uma "API KEY" (uma chave comprida de letras e números).
+5. No Vercel, nas configurações do teu projeto, vai a "Environment Variables" e adiciona:
+   - Name: RESEND_API_KEY
+   - Value: (Cola a chave que te deram)
+6. Carrega no botão de "Deploy" no Vercel.
+
+E pronto! Vais receber um link (ex: patrocinios-matilde.vercel.app) para abrires no telemóvel e enviares novidades de Dublin às tuas empresas!
