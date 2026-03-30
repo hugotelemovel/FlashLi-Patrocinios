@@ -4,7 +4,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
   const empresa = await request.json();
-  const linkDossier = "https://a_tua_app_no_vercel.vercel.app/Dossier_Matilde_Mota.pdf";
+  const linkDossier = "https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf";
 
   let assunto = "Rumo ao Mundial de Dança 2026 - Proposta de Patrocínio";
   let corpoHTML = `
