@@ -76,3 +76,4 @@ No Mobile (iPhone/Android): Transforma-se num sistema de Cards (Cartões) elegan
 
 Desenvolvido com foco total na angariação eficiente e na relação transparente com os patrocinadores. 🌍🇮🇪
 
+By: Hugo_MOta
