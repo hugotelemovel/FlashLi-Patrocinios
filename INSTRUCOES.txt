@@ -1,16 +1,21 @@
-🚀 COMO RESOLVER O PROBLEMA E ATUALIZAR A APP
+🚀 COMO INSTALAR E COMO TESTAR OS EMAILS (MUITO IMPORTANTE)
 ===================================================
 
-1. NO SUPABASE (A CAUSA DO PROBLEMA):
-   O Supabase estava a bloquear a tua app por segurança (RLS - Row Level Security). 
-   - Vai ao teu projeto no Supabase > "SQL Editor".
-   - Cola isto e clica em RUN: 
-     ALTER TABLE patrocinadores DISABLE ROW LEVEL SECURITY;
+⚠️ O SEGREDO DO "RESEND" (PORQUE O EMAIL NÃO CHEGOU ANTES):
+Como não estás a pagar um servidor de email (nem tens um domínio), estás a usar o plano 100% gratuito do Resend (email "onboarding@resend.dev"). 
+A regra deles é estrita: Neste plano grátis, ELES SÓ DEIXAM ENVIAR PARA O TEU PRÓPRIO EMAIL!
+(Ou seja, o email com que te registaste no site deles).
 
-2. NO VERCEL / GITHUB (ATUALIZAR O CÓDIGO):
-   - Os ficheiros desta nova pasta que extraíste já contêm o "tratamento de erros". 
-   - Agora, se houver um erro, a app vai mostrar uma faixa vermelha grande a dizer exatamente o que se passa.
-   - Pega no ficheiro 'app/page.js' desta nova pasta e substitui o ficheiro 'app/page.js' que está no teu GitHub.
-   - O Vercel vai detetar a alteração sozinho e atualizar a app em 1 minuto.
+👉 COMO FAZER O TESTE COM SUCESSO AGORA MESMO:
+1. Pega nesta pasta e substitui tudo no teu GitHub (O Vercel atualiza sozinho).
+2. Abre a tua app (https://flash-li-patrocinios.vercel.app/).
+3. Adiciona uma empresa fictícia, MAS NO CAMPO EMAIL ESCREVE O TEU EMAIL PESSOAL (aquele que usaste na conta do Resend!).
+4. Clica em "Enviar Proposta". 
+5. Em 2 segundos o email vai estar na tua Caixa de Entrada do Gmail!
 
-E já podes testar! O botão "Adicionar" já vai dar sinal de vida imediato.
+🗑️ O BOTÃO DE ELIMINAR:
+Já tens um ícone de um caixote do lixo vermelho à direita de cada empresa pendente ou recusada. Clica e apaga todos os testes que quiseres!
+
+📑 SOBRE O PDF:
+O teu texto está lá exatamente como pediste, letra por letra! O botão aponta para: "https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf".
+Pega no teu PDF, mete-o na pasta "public" (antes de ir para o github) com o nome exato "Dossier_Matilde_Mota.pdf", e quando clicares no botão do email, ele vai abrir na perfeição!
