@@ -1,0 +1,13 @@
+COMO INSTALAR A APP COMPLETA (CRM + EMAILS + UPDATES)
+======================================================
+
+1. Extrai esta pasta (FlashLi_CRM_Completo).
+2. Abre o teu Github (github.com) e faz upload desta pasta inteira.
+3. Cria conta gratuita na Resend (resend.com) e valida lá o teu email (para poderes enviar). Eles vão dar-te uma "API KEY".
+4. Abre o Vercel (vercel.com), clica em "Add New Project" e liga a esta pasta do teu Github.
+5. No Vercel > Environment Variables (Variáveis de Ambiente), adiciona:
+   - Nome: RESEND_API_KEY
+   - Value: a_tua_chave_que_copiaste_do_resend
+6. Clica em Deploy!
+
+O teu link do Vercel passa a ser a tua App de Gestão. Tudo o que tu fizeres lá fica guardado automaticamente.
