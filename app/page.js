@@ -1,10 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone } from 'lucide-react';
+import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
+  const [historico, setHistorico] = useState([]); // NOVA VARIÁVEL PARA O HISTÓRICO
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('Todos'); 
   const [tab, setTab] = useState('crm');
@@ -23,7 +24,7 @@ export default function App() {
   const [bFoto, setBFoto] = useState('');
   const [bVideo, setBVideo] = useState('');
   const [uploadingFoto, setUploadingFoto] = useState(false);
-  const [nomeArquivoTemp, setNomeArquivoTemp] = useState(''); // Variável para a auto-destruição da foto!
+  const [nomeArquivoTemp, setNomeArquivoTemp] = useState('');
 
   const OBJETIVO = 3000;
   const PRIMARY_COLOR = '#d4af37'; 
@@ -31,6 +32,7 @@ export default function App() {
 
   useEffect(() => {
     fetchEmpresas();
+    fetchHistorico(); // BUSCAR O HISTÓRICO AO ABRIR A APP
   }, []);
 
   function showMessage(text, type = 'info') {
@@ -45,6 +47,12 @@ export default function App() {
     if (error) showMessage(`Erro: ${error.message}`, 'error');
     else if (data) setEmpresas(data);
     setLoading(false);
+  }
+
+  // NOVA FUNÇÃO: BUSCAR HISTÓRICO
+  async function fetchHistorico() {
+    const { data, error } = await supabase.from('historico_novidades').select('*').order('created_at', { ascending: false });
+    if (!error && data) setHistorico(data);
   }
 
   async function addEmpresa(e) {
@@ -92,31 +100,26 @@ export default function App() {
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
-  // --- FUNÇÃO ATUALIZADA: UPLOAD COM PREPARAÇÃO PARA AUTO-DESTRUIÇÃO ---
   async function uploadFotoDireta(e) {
     const file = e.target.files[0];
     if (!file) return;
-    
     setUploadingFoto(true);
     showMessage('A carregar foto para a nuvem temporária...', 'info');
-    
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
-    
     const { data, error } = await supabase.storage.from('fotos').upload(fileName, file);
-    
     if (error) {
       showMessage(`❌ Erro no upload: ${error.message}`, 'error');
     } else {
       const { data: publicUrlData } = supabase.storage.from('fotos').getPublicUrl(fileName);
       setBFoto(publicUrlData.publicUrl);
-      setNomeArquivoTemp(fileName); // Guarda o nome do ficheiro para apagar no final
+      setNomeArquivoTemp(fileName); 
       showMessage('📸 Foto pronta! (Será apagada da nuvem após o envio)', 'success');
     }
     setUploadingFoto(false);
   }
 
-  // --- FUNÇÃO ATUALIZADA: ENVIO E AUTO-DESTRUIÇÃO ---
+  // ENVIO DE NOVIDADES ATUALIZADO (GUARDA NO HISTÓRICO)
   async function enviarBroadcast() {
     const aceites = empresas.filter(e => e.status === 'Aceitou');
     if (aceites.length === 0) return showMessage('Sem parceiros ativos para receber novidades.', 'error');
@@ -132,13 +135,25 @@ export default function App() {
       if (res.ok) {
         showMessage('✅ Novidades entregues com sucesso!', 'success');
         
-        // A MAGIA DA LIMPEZA (AUTO-DESTRUIR FOTO NO SUPABASE)
+        // GRAVAR NO HISTÓRICO DA BASE DE DADOS
+        const { data: novoHistorico, error: histError } = await supabase.from('historico_novidades').insert([{
+          assunto: bAssunto,
+          mensagem: bMensagem,
+          foto_url: bFoto,
+          video_url: bVideo,
+          total_destinatarios: aceites.length
+        }]).select();
+
+        if (novoHistorico) {
+          setHistorico([novoHistorico[0], ...historico]); // Atualiza a lista no ecrã na hora
+        }
+
+        // AUTO-DESTRUIR FOTO NO SUPABASE
         if (nomeArquivoTemp) {
           await supabase.storage.from('fotos').remove([nomeArquivoTemp]);
           console.log("Foto temporária apagada do Supabase para poupar espaço!");
         }
         
-        // Limpar o formulário todo
         setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo(''); setNomeArquivoTemp('');
       } else {
         showMessage('❌ Erro no envio dos emails.', 'error');
@@ -162,12 +177,9 @@ export default function App() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
 
-  // --- LÓGICA DE NEGÓCIO ---
   const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
   const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
-  
   const tarefasPendentes = empresas.filter(e => e.status === 'Aceitou' && (!e.recibo_enviado || !e.logo_recebido || !e.redes_sociais)).length;
-  
   const hoje = new Date().toISOString().split('T')[0];
   const followupsAtrasados = empresas.filter(e => e.status === 'Pendente' && e.data_followup && e.data_followup <= hoje).length;
 
@@ -231,7 +243,6 @@ export default function App() {
       {/* === ABA: PIPELINE CRM === */}
       {tab === 'crm' && (
         <div style={{ background: 'transparent' }}>
-          
           <form onSubmit={addEmpresa} style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="flex-wrap-mobile">
             <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
               <h3 style={{ margin: 0, fontSize: '16px' }}>Nova Prospecção</h3>
@@ -266,7 +277,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* LISTA MOBILE */}
           {empresasFiltradas.map(emp => {
             const escalao = getEscalao(emp.valor);
             const atrasado = emp.status === 'Pendente' && emp.data_followup && emp.data_followup <= hoje;
@@ -318,7 +328,6 @@ export default function App() {
             );
           })}
 
-          {/* LISTA DESKTOP */}
           <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="desktop-table">
             <table className="desktop-table">
               <thead style={{ background: '#f8fafc', color: '#64748b', textAlign: 'left', fontSize: '13px' }}>
@@ -414,62 +423,94 @@ export default function App() {
               </div>
               <div style={{ fontSize: '13px', color: '#94a3b8' }}>Parceiros com tarefas de fecho pendentes</div>
             </div>
-
-            <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${followupsAtrasados > 0 ? '#f97316' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Alertas de Chamadas</div>
-              <div style={{ fontSize: '38px', fontWeight: '900', color: followupsAtrasados > 0 ? '#f97316' : '#10b981', margin: '5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {followupsAtrasados} {followupsAtrasados > 0 ? <Phone size={30}/> : <CheckCircle size={30}/>}
-              </div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Follow-ups atrasados / para hoje</div>
-            </div>
           </div>
         </div>
       )}
 
-      {/* === ABA: DIÁRIO DE BORDO === */}
+      {/* === ABA: DIÁRIO DE BORDO E HISTÓRICO === */}
       {tab === 'broadcast' && (
-        <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', maxWidth: '800px', margin: '0 auto', border: `1px solid ${PRIMARY_COLOR}` }}>
-          <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '24px', fontWeight: '900' }}>Diário de Bordo 🇮🇪</h2>
-          <p style={{ color: '#64748b', fontSize: '15px' }}>Comunica novidades e resultados diretamente para as <b>{totalAceites} empresas</b> oficiais.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '800px', margin: '0 auto' }}>
+          
+          {/* CAIXA DE NOVO ENVIO */}
+          <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: `1px solid ${PRIMARY_COLOR}` }}>
+            <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '24px', fontWeight: '900' }}>Diário de Bordo 🇮🇪</h2>
+            <p style={{ color: '#64748b', fontSize: '15px' }}>Comunica novidades e resultados diretamente para as <b>{totalAceites} empresas</b> oficiais.</p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '30px' }}>
-            <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155' }}>Assunto do Email</label>
-              <input type="text" value={bAssunto} onChange={e=>setBAssunto(e.target.value)} placeholder="Ex: Medalha de Ouro em Acro Dance! 🥇🏆" style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '16px' }} />
-            </div>
-            
-            <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155' }}>Mensagem aos Patrocinadores</label>
-              <textarea value={bMensagem} onChange={e=>setBMensagem(e.target.value)} rows="6" placeholder="Escreva a atualização aqui..." style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '15px', resize: 'vertical' }}></textarea>
-            </div>
-
-            <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '10px', color: '#334155', fontSize: '14px' }}>Adicionar Imagem / Álbum 📸</label>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <label className="btn-hover" style={{ background: TEXT_PRIMARY, color: 'white', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px' }}>
-                    <UploadCloud size={16}/> Enviar Foto Solta do Telemóvel
-                    <input type="file" accept="image/*" onChange={uploadFotoDireta} style={{ display: 'none' }} disabled={uploadingFoto} />
-                  </label>
-                  <span style={{ fontSize: '13px', color: '#64748b' }}>{uploadingFoto ? 'A carregar para a nuvem...' : '(Guarda e anexa ao email)'}</span>
-                </div>
-                
-                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>OU</div>
-                
-                <input type="text" value={bFoto} onChange={e=>setBFoto(e.target.value)} placeholder="Cola aqui um link partilhado (Google Fotos / iCloud)" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '30px' }}>
+              <div>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155' }}>Assunto do Email</label>
+                <input type="text" value={bAssunto} onChange={e=>setBAssunto(e.target.value)} placeholder="Ex: Medalha de Ouro em Acro Dance! 🥇🏆" style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '16px' }} />
               </div>
-            </div>
+              
+              <div>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155' }}>Mensagem aos Patrocinadores</label>
+                <textarea value={bMensagem} onChange={e=>setBMensagem(e.target.value)} rows="6" placeholder="Escreva a atualização aqui..." style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '15px', resize: 'vertical' }}></textarea>
+              </div>
 
-            <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>Adicionar Vídeo ▶️</label>
-              <input type="text" value={bVideo} onChange={e=>setBVideo(e.target.value)} placeholder="Link direto do YouTube / Instagram" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-            </div>
+              <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '10px', color: '#334155', fontSize: '14px' }}>Adicionar Imagem / Álbum 📸</label>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <label className="btn-hover" style={{ background: TEXT_PRIMARY, color: 'white', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px' }}>
+                      <UploadCloud size={16}/> Enviar Foto Solta do Telemóvel
+                      <input type="file" accept="image/*" onChange={uploadFotoDireta} style={{ display: 'none' }} disabled={uploadingFoto} />
+                    </label>
+                    <span style={{ fontSize: '13px', color: '#64748b' }}>{uploadingFoto ? 'A carregar para a nuvem...' : '(Guarda e anexa ao email)'}</span>
+                  </div>
+                  
+                  <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>OU</div>
+                  
+                  <input type="text" value={bFoto} onChange={e=>setBFoto(e.target.value)} placeholder="Cola aqui um link partilhado (Google Fotos / iCloud)" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                </div>
+              </div>
 
-            <button onClick={enviarBroadcast} className="btn-hover" style={{ padding: '18px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', marginTop: '10px' }}>
-              🚀 Disparar para {totalAceites} Parceiros Oficiais
-            </button>
+              <div>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>Adicionar Vídeo ▶️</label>
+                <input type="text" value={bVideo} onChange={e=>setBVideo(e.target.value)} placeholder="Link direto do YouTube / Instagram" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+              </div>
+
+              <button onClick={enviarBroadcast} className="btn-hover" style={{ padding: '18px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', marginTop: '10px' }}>
+                🚀 Disparar para {totalAceites} Parceiros Oficiais
+              </button>
+            </div>
           </div>
+
+          {/* SECÇÃO DO HISTÓRICO DE ENVIOS */}
+          <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #f1f5f9', paddingBottom: '15px' }}>
+              <Clock size={22} color={PRIMARY_COLOR}/> Histórico de Atualizações Enviadas
+            </h3>
+            
+            {historico.length === 0 ? (
+              <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px 0', fontSize: '15px' }}>Ainda não foram enviadas atualizações.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
+                {historico.map((item) => (
+                  <div key={item.id} style={{ padding: '20px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
+                      <strong style={{ fontSize: '16px', color: '#1e293b' }}>{item.assunto}</strong>
+                      <span style={{ fontSize: '12px', background: '#e2e8f0', padding: '4px 10px', borderRadius: '20px', color: '#475569', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <Calendar size={14}/> {new Date(item.created_at).toLocaleDateString('pt-PT')}
+                      </span>
+                    </div>
+                    
+                    <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 15px 0', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+                      {item.mensagem && item.mensagem.length > 150 ? item.mensagem.substring(0, 150) + '...' : item.mensagem}
+                    </p>
+                    
+                    <div style={{ display: 'flex', gap: '15px', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                      <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}><Users size={14}/> Enviado para {item.total_destinatarios} parceiros</span>
+                      {(item.foto_url || item.video_url) && (
+                        <span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}><FileText size={14}/> Incluiu Multimédia</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
         </div>
       )}
     </div>
