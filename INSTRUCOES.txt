@@ -1,25 +1,16 @@
-🚀 COMO INSTALAR A SUPER APP "CLOUD" (PASSO A PASSO)
+🚀 COMO RESOLVER O PROBLEMA E ATUALIZAR A APP
 ===================================================
 
-PASSO 1: A BASE DE DADOS (SUPABASE)
-1. Vai a Supabase.com e cria uma conta gratuita.
-2. Cria um Novo Projeto (Project Name: FlashLi, Password: cria uma e guarda-a).
-3. No menu da esquerda, vai ao "SQL Editor".
-4. Copia todo o texto que está no ficheiro "setup.sql" desta pasta, cola lá e clica em "Run" (Isto cria a tabela mágica das empresas!).
-5. No menu esquerdo, vai a Project Settings (roda dentada) > API.
-6. Copia o "Project URL" e a "anon public Key". Vais precisar delas no Vercel.
+1. NO SUPABASE (A CAUSA DO PROBLEMA):
+   O Supabase estava a bloquear a tua app por segurança (RLS - Row Level Security). 
+   - Vai ao teu projeto no Supabase > "SQL Editor".
+   - Cola isto e clica em RUN: 
+     ALTER TABLE patrocinadores DISABLE ROW LEVEL SECURITY;
 
-PASSO 2: O EMAIL (RESEND)
-1. Se ainda não fizeste, vai a resend.com e cria a "API KEY".
+2. NO VERCEL / GITHUB (ATUALIZAR O CÓDIGO):
+   - Os ficheiros desta nova pasta que extraíste já contêm o "tratamento de erros". 
+   - Agora, se houver um erro, a app vai mostrar uma faixa vermelha grande a dizer exatamente o que se passa.
+   - Pega no ficheiro 'app/page.js' desta nova pasta e substitui o ficheiro 'app/page.js' que está no teu GitHub.
+   - O Vercel vai detetar a alteração sozinho e atualizar a app em 1 minuto.
 
-PASSO 3: PUBLICAR A APP (VERCEL)
-1. Coloca esta pasta toda no teu GitHub.
-2. Vai ao Vercel.com e importa o projeto.
-3. Nas Variáveis de Ambiente (Environment Variables), tens de colar estas 3 chaves:
-   - NEXT_PUBLIC_SUPABASE_URL = (O URL do Supabase do Passo 1)
-   - NEXT_PUBLIC_SUPABASE_ANON_KEY = (A chave "anon" do Supabase do Passo 1)
-   - RESEND_API_KEY = (A chave do Resend)
-4. Clica em DEPLOY.
-
-PASSO 4: O TEU PDF (Não esqueças!)
-Lembra-te de colocar o teu PDF verdadeiro na pasta "public" com o nome "Dossier_Matilde_Mota.pdf" antes de meteres no GitHub, para o link de download funcionar perfeitamente!
+E já podes testar! O botão "Adicionar" já vai dar sinal de vida imediato.
