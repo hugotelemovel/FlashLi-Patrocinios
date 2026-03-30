@@ -57,3 +57,21 @@ NEXT_PUBLIC_SUPABASE_URL=teu_url_do_supabase
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tua_chave_anon_do_supabase
 EMAIL_USER=o_teu_email@gmail.com
 EMAIL_PASS=senha_de_app_gerada_no_gmail_de_16_letras
+
+3. Supabase Storage (Gaveta de Fotos)
+Foi criado um Bucket no Supabase com as seguintes características:
+
+Nome: fotos
+
+Tipo: Public (Para permitir a pré-visualização no envio)
+
+Limpeza: Gerida automaticamente pela própria aplicação após o envio de cada Broadcast.
+
+📱 Interface Mobile & Desktop
+O design da aplicação utiliza CSS Injection Nativo para garantir uma transição perfeita:
+
+No Desktop: Apresenta uma tabela de CRM profissional e expandida.
+
+No Mobile (iPhone/Android): Transforma-se num sistema de Cards (Cartões) elegantes, com inputs táteis otimizados e botões fáceis de clicar em andamento.
+
+Desenvolvido com foco total na angariação eficiente e na relação transparente com os patrocinadores. 🌍🇮🇪
