@@ -22,15 +22,15 @@ export async function POST(request) {
       attachments.push({
         filename: 'foto-novidade.jpg',
         path: fotoUrl, // O Gmail descarrega a foto daqui temporariamente
-        cid: 'foto_magica_embutida' // Identificador único
+        cid: 'foto_magica_embutida' // Identificador único invisível
       });
-      // Em vez de usar o link da net, usamos a foto embutida
+      // Em vez de usar o link da net, usamos a foto embutida diretamente no email
       imgTag = `<div style="text-align:center; margin: 20px 0;"><img src="cid:foto_magica_embutida" style="max-width: 100%; border-radius: 8px;" alt="Fotografia DWCup" /></div>`;
     }
 
     let videoBtn = videoUrl ? `<div style="text-align:center; margin: 20px 0;"><a href="${videoUrl}" style="background: #10b981; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">▶️ Ver Vídeo Oficial</a></div>` : '';
 
-    // 2. ENVIAR PARA TODAS AS EMPRESAS
+    // 2. ENVIAR PARA TODAS AS EMPRESAS QUE ACEITARAM
     for (const empresa of empresas) {
       await transporter.sendMail({
         from: `"Angariação DWCup - Flash Li" <${process.env.EMAIL_USER}>`,
