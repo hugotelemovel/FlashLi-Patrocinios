@@ -5,7 +5,7 @@ import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTrian
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
-  const [historico, setHistorico] = useState([]); // NOVA VARIÁVEL PARA O HISTÓRICO
+  const [historico, setHistorico] = useState([]); 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('Todos'); 
   const [tab, setTab] = useState('crm');
@@ -32,7 +32,7 @@ export default function App() {
 
   useEffect(() => {
     fetchEmpresas();
-    fetchHistorico(); // BUSCAR O HISTÓRICO AO ABRIR A APP
+    fetchHistorico();
   }, []);
 
   function showMessage(text, type = 'info') {
@@ -44,12 +44,14 @@ export default function App() {
   async function fetchEmpresas() {
     setLoading(true);
     const { data, error } = await supabase.from('patrocinadores').select('*').order('created_at', { ascending: false });
-    if (error) showMessage(`Erro: ${error.message}`, 'error');
+    if (error) {
+      showMessage(`Erro a carregar empresas: Verifica a ligação ao Supabase`, 'error');
+      console.error(error);
+    }
     else if (data) setEmpresas(data);
     setLoading(false);
   }
 
-  // NOVA FUNÇÃO: BUSCAR HISTÓRICO
   async function fetchHistorico() {
     const { data, error } = await supabase.from('historico_novidades').select('*').order('created_at', { ascending: false });
     if (!error && data) setHistorico(data);
@@ -59,12 +61,22 @@ export default function App() {
     e.preventDefault();
     if (!nome || !email) return;
     showMessage('A adicionar parceiro...', 'info');
-    const { data, error } = await supabase.from('patrocinadores').insert([{ 
-      nome, email, telefone, idioma, status: 'Pendente', data_followup: dataFollowup || null 
-    }]).select();
     
-    if (error) showMessage(`❌ ERRO: ${error.message}`, 'error');
-    else if (data) {
+    // Inserção à prova de bala
+    const novaEmpresa = { 
+      nome, 
+      email, 
+      telefone, 
+      idioma, 
+      status: 'Pendente', 
+      data_followup: dataFollowup || null 
+    };
+
+    const { data, error } = await supabase.from('patrocinadores').insert([novaEmpresa]).select();
+    
+    if (error) {
+      showMessage(`❌ ERRO: ${error.message}`, 'error');
+    } else if (data) {
       setEmpresas([data[0], ...empresas]);
       setNome(''); setEmail(''); setTelefone(''); setDataFollowup('');
       showMessage('✅ Parceiro adicionado com sucesso!', 'success');
@@ -119,7 +131,6 @@ export default function App() {
     setUploadingFoto(false);
   }
 
-  // ENVIO DE NOVIDADES ATUALIZADO (GUARDA NO HISTÓRICO)
   async function enviarBroadcast() {
     const aceites = empresas.filter(e => e.status === 'Aceitou');
     if (aceites.length === 0) return showMessage('Sem parceiros ativos para receber novidades.', 'error');
@@ -135,7 +146,6 @@ export default function App() {
       if (res.ok) {
         showMessage('✅ Novidades entregues com sucesso!', 'success');
         
-        // GRAVAR NO HISTÓRICO DA BASE DE DADOS
         const { data: novoHistorico, error: histError } = await supabase.from('historico_novidades').insert([{
           assunto: bAssunto,
           mensagem: bMensagem,
@@ -144,14 +154,10 @@ export default function App() {
           total_destinatarios: aceites.length
         }]).select();
 
-        if (novoHistorico) {
-          setHistorico([novoHistorico[0], ...historico]); // Atualiza a lista no ecrã na hora
-        }
+        if (novoHistorico) setHistorico([novoHistorico[0], ...historico]);
 
-        // AUTO-DESTRUIR FOTO NO SUPABASE
         if (nomeArquivoTemp) {
           await supabase.storage.from('fotos').remove([nomeArquivoTemp]);
-          console.log("Foto temporária apagada do Supabase para poupar espaço!");
         }
         
         setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo(''); setNomeArquivoTemp('');
@@ -164,10 +170,10 @@ export default function App() {
   }
 
   function exportToCSV() {
-    const headers = ['Nome', 'Email', 'Telefone', 'Idioma', 'Estado', 'Valor (€)', 'Escalão', 'Recibo', 'Logo Recebido', 'Redes Sociais', 'Follow-up'];
+    const headers = ['Nome', 'Email', 'Telefone', 'Idioma', 'Estado', 'Valor (€)', 'Escalão', 'Recibo Emitido', 'Logo Recebido', 'Redes Sociais', 'Data Follow-up', 'Notas'];
     const rows = empresas.map(emp => [
       `"${emp.nome}"`, emp.email, emp.telefone || '', emp.idioma, emp.status, emp.valor || 0, getEscalao(emp.valor).nome, 
-      emp.recibo_enviado ? 'Sim' : 'Não', emp.logo_recebido ? 'Sim' : 'Não', emp.redes_sociais ? 'Sim' : 'Não', emp.data_followup || ''
+      emp.recibo_enviado ? 'Sim' : 'Não', emp.logo_recebido ? 'Sim' : 'Não', emp.redes_sociais ? 'Sim' : 'Não', emp.data_followup || '', `"${emp.notas || ''}"`
     ]);
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -205,7 +211,8 @@ export default function App() {
         .desktop-table { display: none; }
         .mobile-card { background: white; border-radius: 12px; padding: 15px; border: 1px solid #e2e8f0; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .flex-wrap-mobile { flex-wrap: wrap; }
-        .task-checkbox { display: flex; alignItems: center; gap: 8px; font-size: 12px; cursor: pointer; padding: 4px 0; }
+        .task-checkbox { display: flex; alignItems: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 6px 0; font-weight: 500;}
+        .task-checkbox input { cursor: pointer; transform: scale(1.2); }
         .task-checkbox:hover { opacity: 0.8; }
         
         @media (min-width: 768px) {
@@ -277,6 +284,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* === LISTA MOBILE === */}
           {empresasFiltradas.map(emp => {
             const escalao = getEscalao(emp.valor);
             const atrasado = emp.status === 'Pendente' && emp.data_followup && emp.data_followup <= hoje;
@@ -301,17 +309,28 @@ export default function App() {
                   </div>
                 )}
 
+                {/* ZONA DO RECIBO E CHECKLIST - SÓ APARECE SE "ACEITOU" */}
                 {emp.status === 'Aceitou' && (
-                  <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px dashed #cbd5e1', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
-                      <input type="number" placeholder="Valor €" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '90px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
-                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: escalao.cor }}>{escalao.nome}</div>
+                  <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '2px dashed #cbd5e1', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
+                      <input type="number" placeholder="Valor €" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '100px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '16px' }} />
+                      <div style={{ fontSize: '14px', fontWeight: 'bold', color: escalao.cor }}>{escalao.nome}</div>
                     </div>
-                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '4px' }}>Tarefas (Checklist):</div>
-                      <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Emitir Recibo Oficial</label>
-                      <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> Logo da Empresa Recebido</label>
-                      <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> Agradecimento nas Redes</label>
+                    
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#1a1a1a', marginBottom: '8px', textTransform: 'uppercase' }}>Checklist Obrigatória:</div>
+                      
+                      <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}>
+                        <input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Emitir Recibo Oficial
+                      </label>
+                      
+                      <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}>
+                        <input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> Receber Logotipo
+                      </label>
+                      
+                      <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}>
+                        <input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> Post de Agradecimento (Redes)
+                      </label>
                     </div>
                   </div>
                 )}
@@ -328,13 +347,14 @@ export default function App() {
             );
           })}
 
+          {/* === LISTA DESKTOP === */}
           <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="desktop-table">
             <table className="desktop-table">
               <thead style={{ background: '#f8fafc', color: '#64748b', textAlign: 'left', fontSize: '13px' }}>
                 <tr>
                   <th style={{ padding: '15px' }}>Parceiro</th>
                   <th style={{ padding: '15px' }}>Estado do Negócio</th>
-                  <th style={{ padding: '15px' }}>Entregáveis (Checklist)</th>
+                  <th style={{ padding: '15px' }}>Gestão & Entregáveis</th>
                   <th style={{ padding: '15px' }}>Notas & Follow-up</th>
                   <th style={{ padding: '15px', textAlign: 'right' }}>Ações</th>
                 </tr>
@@ -357,15 +377,25 @@ export default function App() {
                         {emp.proposta_enviada_em && <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '5px' }}>✓ Proposta Enviada</div>}
                       </td>
                       <td style={{ padding: '15px' }}>
+                        {/* ZONA DO RECIBO E CHECKLIST - SÓ APARECE SE "ACEITOU" */}
                         {emp.status === 'Aceitou' ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '5px' }}>
-                              <input type="number" placeholder="€" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '80px', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
-                              <span style={{fontSize: '11px', fontWeight: 'bold', color: escalao.cor}}>{escalao.nome}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                              <input type="number" placeholder="€" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '80px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
+                              <span style={{fontSize: '12px', fontWeight: 'bold', color: escalao.cor}}>{escalao.nome}</span>
                             </div>
-                            <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> 1. Recibo Emitido</label>
-                            <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> 2. Logo Recebido</label>
-                            <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> 3. Post nas Redes</label>
+                            
+                            <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}>
+                              <input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> 1. Recibo Emitido
+                            </label>
+                            
+                            <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}>
+                              <input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> 2. Logo Recebido
+                            </label>
+                            
+                            <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}>
+                              <input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> 3. Post nas Redes
+                            </label>
                           </div>
                         ) : <span style={{color: '#cbd5e1'}}>-</span>}
                       </td>
@@ -373,10 +403,10 @@ export default function App() {
                         {emp.status === 'Pendente' && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px' }}>
                             <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>Ligar a:</span>
-                            <input type="date" value={emp.data_followup || ''} onChange={(e) => updateCampo(emp.id, 'data_followup', e.target.value)} style={{ padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '11px', background: atrasado ? '#fee2e2' : 'white', color: atrasado ? '#ef4444' : 'inherit' }} />
+                            <input type="date" value={emp.data_followup || ''} onChange={(e) => updateCampo(emp.id, 'data_followup', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '11px', background: atrasado ? '#fee2e2' : 'white', color: atrasado ? '#ef4444' : 'inherit' }} />
                           </div>
                         )}
-                        <textarea placeholder="Notas..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '40px', fontSize: '12px', background: '#f8fafc', resize: 'vertical' }}></textarea>
+                        <textarea placeholder="Notas..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '60px', fontSize: '12px', background: '#f8fafc', resize: 'vertical' }}></textarea>
                       </td>
                       <td style={{ padding: '15px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -416,6 +446,7 @@ export default function App() {
               <div style={{ fontSize: '13px', color: '#94a3b8' }}>{empresas.length > 0 ? ((totalAceites / empresas.length) * 100).toFixed(0) : 0}% de taxa de fecho</div>
             </div>
 
+            {/* CARTÃO VERMELHO DOS RECIBOS/LOGOS */}
             <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${tarefasPendentes > 0 ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
               <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Tarefas (Recibos e Logos)</div>
               <div style={{ fontSize: '38px', fontWeight: '900', color: tarefasPendentes > 0 ? '#ef4444' : '#10b981', margin: '5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -431,7 +462,6 @@ export default function App() {
       {tab === 'broadcast' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '800px', margin: '0 auto' }}>
           
-          {/* CAIXA DE NOVO ENVIO */}
           <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: `1px solid ${PRIMARY_COLOR}` }}>
             <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '24px', fontWeight: '900' }}>Diário de Bordo 🇮🇪</h2>
             <p style={{ color: '#64748b', fontSize: '15px' }}>Comunica novidades e resultados diretamente para as <b>{totalAceites} empresas</b> oficiais.</p>
