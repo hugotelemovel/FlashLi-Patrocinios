@@ -1,25 +1,32 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, Image as ImageIcon, Send, Trash2 } from 'lucide-react';
+import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, Phone, FileText, Check, X, Filter } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('Todos'); // Todos, Pendente, Aceitou, Recusou
   const [tab, setTab] = useState('crm');
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
-  const [msgType, setMsgType] = useState('info'); 
+  const [msgType, setMsgType] = useState('info');
 
+  // Form states
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
+  const [telefone, setTelefone] = useState('');
   const [idioma, setIdioma] = useState('PT');
 
+  // Broadcast states
   const [bAssunto, setBAssunto] = useState('');
   const [bMensagem, setBMensagem] = useState('');
   const [bFoto, setBFoto] = useState('');
   const [bVideo, setBVideo] = useState('');
 
   const OBJETIVO = 3000;
+  const PRIMARY_COLOR = '#d4af37'; // Dourado
+  const TEXT_PRIMARY = '#1a1a1a'; // Preto
 
   useEffect(() => {
     fetchEmpresas();
@@ -28,26 +35,27 @@ export default function App() {
   function showMessage(text, type = 'info') {
     setMsg(text);
     setMsgType(type);
-    setTimeout(() => setMsg(''), 6000);
+    setTimeout(() => setMsg(''), 5000);
   }
 
   async function fetchEmpresas() {
     setLoading(true);
     const { data, error } = await supabase.from('patrocinadores').select('*').order('created_at', { ascending: false });
-    if (!error && data) setEmpresas(data);
+    if (error) showMessage(`Erro: ${error.message}`, 'error');
+    else if (data) setEmpresas(data);
     setLoading(false);
   }
 
   async function addEmpresa(e) {
     e.preventDefault();
     if (!nome || !email) return;
-    showMessage('A guardar empresa...', 'info');
-    const { data, error } = await supabase.from('patrocinadores').insert([{ nome, email, idioma, status: 'Pendente' }]).select();
+    showMessage('A adicionar parceiro...', 'info');
+    const { data, error } = await supabase.from('patrocinadores').insert([{ nome, email, telefone, idioma, status: 'Pendente' }]).select();
     if (error) showMessage(`❌ ERRO: ${error.message}`, 'error');
     else if (data) {
       setEmpresas([data[0], ...empresas]);
-      setNome(''); setEmail('');
-      showMessage('✅ Adicionada com sucesso!', 'success');
+      setNome(''); setEmail(''); setTelefone('');
+      showMessage('✅ Parceiro adicionado com sucesso!', 'success');
     }
   }
 
@@ -57,7 +65,7 @@ export default function App() {
   }
 
   async function eliminarEmpresa(id, nomeEmpresa) {
-    if (!window.confirm(`Eliminar "${nomeEmpresa}"?`)) return;
+    if (!window.confirm(`Eliminar permanentemente "${nomeEmpresa}"?`)) return;
     const { error } = await supabase.from('patrocinadores').delete().eq('id', id);
     if (!error) {
       setEmpresas(empresas.filter(emp => emp.id !== id));
@@ -66,7 +74,7 @@ export default function App() {
   }
 
   async function enviarProposta(empresa) {
-    showMessage(`A enviar proposta via Gmail...`, 'info');
+    showMessage(`A enviar proposta profissional para ${empresa.nome}...`, 'info');
     try {
       const res = await fetch('/api/send-proposal', {
         method: 'POST',
@@ -74,16 +82,16 @@ export default function App() {
         body: JSON.stringify(empresa)
       });
       if (res.ok) {
-        showMessage(`✅ Enviado com sucesso!`, 'success');
+        showMessage(`✅ Enviado!`, 'success');
         updateCampo(empresa.id, 'proposta_enviada_em', new Date().toISOString());
-      } else showMessage(`❌ Erro no envio`, 'error');
-    } catch (err) { showMessage('Erro de sistema.', 'error'); }
+      } else showMessage(`❌ Falha no envio`, 'error');
+    } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
   async function enviarBroadcast() {
     const aceites = empresas.filter(e => e.status === 'Aceitou');
-    if (aceites.length === 0) return showMessage('Sem empresas para envio.', 'error');
-    showMessage(`A enviar novidades via Gmail...`, 'info');
+    if (aceites.length === 0) return showMessage('Sem parceiros ativos para receber novidades.', 'error');
+    showMessage(`A enviar diário para ${aceites.length} parceiros...`, 'info');
     try {
       const res = await fetch('/api/send-update', {
         method: 'POST',
@@ -91,82 +99,192 @@ export default function App() {
         body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: bFoto, videoUrl: bVideo, empresas: aceites })
       });
       if (res.ok) {
-        showMessage('✅ Novidades enviadas!', 'success');
+        showMessage('✅ Novidades entregues!', 'success');
         setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo('');
       } else showMessage('❌ Erro no envio.', 'error');
-    } catch (err) { showMessage('Erro de sistema.', 'error'); }
+    } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
-  const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
-  const totalContactos = empresas.length;
-  const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
+  function exportToCSV() {
+    const headers = ['Nome', 'Email', 'Telefone', 'Idioma', 'Estado', 'Valor (€)', 'Recibo Emitido', 'Notas'];
+    const rows = empresas.map(emp => [
+      `"${emp.nome}"`, emp.email, emp.telefone || '', emp.idioma, emp.status, emp.valor || 0, emp.recibo_enviado ? 'Sim' : 'Não', `"${emp.notas || ''}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `FlashLi_Patrocinadores.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 
-  if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>A carregar... ☁️</div>;
+  // Estatísticas
+  const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
+  const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
+  const recibosPendentes = empresas.filter(e => e.status === 'Aceitou' && !e.recibo_enviado).length;
+
+  // Filtros
+  let empresasFiltradas = empresas.filter(emp => emp.nome.toLowerCase().includes(searchTerm.toLowerCase()) || emp.email.toLowerCase().includes(searchTerm.toLowerCase()));
+  if (filterStatus !== 'Todos') {
+    empresasFiltradas = empresasFiltradas.filter(emp => emp.status === filterStatus);
+  }
+
+  if (loading) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>A carregar Super App... ⏳</div>;
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '15px' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '15px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
       
-      {/* CABEÇALHO OFICIAL COM LOGO E NOME */}
-      <header style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px', background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+      {/* Estilos CSS Nativos para Responsividade Extrema (Mobile First) */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .responsive-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        .desktop-table { display: none; }
+        .mobile-card { background: white; border-radius: 12px; padding: 15px; border: 1px solid #e2e8f0; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .flex-wrap-mobile { flex-wrap: wrap; }
+        
+        @media (min-width: 768px) {
+          .responsive-grid { grid-template-columns: repeat(3, 1fr); }
+          .desktop-table { display: table; width: 100%; border-collapse: collapse; }
+          .mobile-card { display: none; }
+          .flex-wrap-mobile { flex-wrap: nowrap; }
+        }
+        
+        input, select, textarea { box-sizing: border-box; }
+        .btn-hover:hover { opacity: 0.9; transform: scale(0.98); }
+      `}} />
+
+      {/* CABEÇALHO */}
+      <header style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px', background: 'white', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderTop: `6px solid ${PRIMARY_COLOR}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <img src="/logo.jpg" alt="Logotipo Flash Li" style={{ width: '60px', borderRadius: '50%', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
+          <img src="/logo.jpg" alt="Logotipo Oficial Flash Li" style={{ width: '65px', borderRadius: '12px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} />
           <div>
-            <h1 style={{ color: '#0f172a', margin: 0, fontSize: '20px' }}>Angariação de Fundos</h1>
-            <h2 style={{ color: '#d4af37', margin: 0, fontSize: '15px' }}>DWCup 2026 - Dublin</h2>
+            <h1 style={{ color: TEXT_PRIMARY, margin: 0, fontSize: '22px', fontWeight: '900' }}>ANGARIAÇÃO DWCUP</h1>
+            <h2 style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '14px', fontWeight: '500' }}>Flash Li Dance School • Dublin 2026</h2>
           </div>
         </div>
         
+        {/* NAVEGAÇÃO */}
         <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' }}>
-          <button onClick={() => setTab('crm')} style={{ flexShrink: 0, padding: '10px 15px', background: tab === 'crm' ? '#2563eb' : '#e2e8f0', color: tab === 'crm' ? 'white' : '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Gestão</button>
-          <button onClick={() => setTab('reports')} style={{ flexShrink: 0, padding: '10px 15px', background: tab === 'reports' ? '#2563eb' : '#e2e8f0', color: tab === 'reports' ? 'white' : '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Relatórios</button>
-          <button onClick={() => setTab('broadcast')} style={{ flexShrink: 0, padding: '10px 15px', background: tab === 'broadcast' ? '#2563eb' : '#e2e8f0', color: tab === 'broadcast' ? 'white' : '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Novidades</button>
+          <button onClick={() => setTab('crm')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'crm' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'crm' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><Users size={18}/> Pipeline CRM</button>
+          <button onClick={() => setTab('reports')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'reports' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'reports' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><BarChart3 size={18}/> Dashboards</button>
+          <button onClick={() => setTab('broadcast')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'broadcast' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'broadcast' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><ImageIcon size={18}/> Diário Rumo a Dublin</button>
         </div>
       </header>
 
-      {msg && <div style={{ padding: '15px', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold', background: msgType === 'error' ? '#fee2e2' : '#dcfce7', color: msgType === 'error' ? '#991b1b' : '#166534' }}>{msg}</div>}
+      {/* MENSAGENS */}
+      {msg && <div style={{ background: msgType === 'error' ? '#fee2e2' : '#f0fdf4', color: msgType === 'error' ? '#991b1b' : '#166534', padding: '15px', borderRadius: '10px', marginBottom: '20px', fontWeight: 'bold', border: `1px solid ${msgType === 'error' ? '#f87171' : '#4ade80'}` }}>{msg}</div>}
 
-      {/* ABA DE GESTÃO E PROPOSTAS */}
+      {/* === ABA: PIPELINE CRM === */}
       {tab === 'crm' && (
-        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <form onSubmit={addEmpresa} style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '20px', background: '#f8fafc', padding: '15px', borderRadius: '8px' }}>
-            <input type="text" placeholder="Empresa" value={nome} onChange={e => setNome(e.target.value)} style={{ flex: '1 1 200px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} required />
-            <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ flex: '1 1 200px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} required />
-            <select value={idioma} onChange={e => setIdioma(e.target.value)} style={{ flex: '1 1 100px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-              <option value="PT">🇵🇹 PT</option><option value="ES">🇪🇸 ES</option>
+        <div style={{ background: 'transparent' }}>
+          
+          {/* ADICIONAR NOVA EMPRESA */}
+          <form onSubmit={addEmpresa} style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="flex-wrap-mobile">
+            <h3 style={{ width: '100%', margin: '0 0 10px 0', fontSize: '16px' }}>Novo Contacto</h3>
+            <input type="text" placeholder="Nome da Empresa" value={nome} onChange={e => setNome(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} required />
+            <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} required />
+            <input type="text" placeholder="Telefone" value={telefone} onChange={e => setTelefone(e.target.value)} style={{ flex: '1 1 120px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+            <select value={idioma} onChange={e => setIdioma(e.target.value)} style={{ flex: '1 1 80px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+              <option value="PT">🇵🇹</option><option value="ES">🇪🇸</option>
             </select>
-            <button type="submit" style={{ flex: '1 1 100%', padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>+ Adicionar</button>
+            <button type="submit" className="btn-hover" style={{ flex: '1 1 100%', padding: '12px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Guardar e Adicionar</button>
           </form>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', minWidth: '600px' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', color: '#64748b', textAlign: 'left' }}>
-                  <th style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>Empresa</th>
-                  <th style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>Estado</th>
-                  <th style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>Gestão (€)</th>
-                  <th style={{ padding: '12px', borderBottom: '1px solid #e2e8f0', textAlign: 'right' }}>Ações</th>
+          {/* BARRA DE FERRAMENTAS (Filtros e Pesquisa) */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center' }} className="flex-wrap-mobile">
+            <div style={{ flex: '1 1 250px', position: 'relative' }}>
+              <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
+              <input type="text" placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', flex: '1 1 100%' }}>
+              {['Todos', 'Pendente', 'Aceitou', 'Recusou'].map(status => (
+                <button key={status} onClick={() => setFilterStatus(status)} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: filterStatus === status ? PRIMARY_COLOR : '#e2e8f0', color: filterStatus === status ? 'white' : '#475569', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>
+                  {status === 'Aceitou' ? '✅ Aceites' : status === 'Recusou' ? '❌ Recusados' : status === 'Pendente' ? '⏳ Pendentes' : '🌍 Todos'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* LISTA DE EMPRESAS - MOBILE (Cartões) */}
+          {empresasFiltradas.map(emp => (
+            <div key={`mobile-${emp.id}`} className="mobile-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                <div>
+                  <div style={{ fontWeight: '900', fontSize: '16px', color: TEXT_PRIMARY }}>{emp.nome}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email} {emp.telefone && `• ${emp.telefone}`}</div>
+                </div>
+                <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', background: emp.status === 'Aceitou' ? '#dcfce7' : emp.status === 'Pendente' ? '#fef9c3' : '#fee2e2' }}>
+                  <option value="Pendente">⏳ Pendente</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
+                </select>
+              </div>
+
+              {/* ZONA DO RECIBO (Visível só nos Aceites) */}
+              {emp.status === 'Aceitou' && (
+                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px dashed #cbd5e1', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>Gestão Financeira:</div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <input type="number" placeholder="Valor €" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '100px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                    <button onClick={() => updateCampo(emp.id, 'recibo_enviado', !emp.recibo_enviado)} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', background: emp.recibo_enviado ? '#10b981' : '#ef4444', color: 'white' }}>
+                      {emp.recibo_enviado ? <><Check size={16}/> Recibo Emitido</> : <><X size={16}/> Faltar Emitir Recibo</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <input type="text" placeholder="Adicionar notas (Ex: Ligar à tarde)..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', marginBottom: '10px', background: '#f8fafc' }} />
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {emp.status !== 'Aceitou' && (
+                  <button onClick={() => enviarProposta(emp)} style={{ flex: 1, padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Send size={14}/> Enviar Proposta</button>
+                )}
+                <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px' }}><Trash2 size={16}/></button>
+              </div>
+            </div>
+          ))}
+
+          {/* LISTA DE EMPRESAS - DESKTOP (Tabela) */}
+          <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="desktop-table">
+            <table className="desktop-table">
+              <thead style={{ background: '#f8fafc', color: '#64748b', textAlign: 'left', fontSize: '13px' }}>
+                <tr>
+                  <th style={{ padding: '15px' }}>Parceiro / Empresa</th>
+                  <th style={{ padding: '15px' }}>Estado do Negócio</th>
+                  <th style={{ padding: '15px' }}>Financeiro & Recibos</th>
+                  <th style={{ padding: '15px' }}>Notas Internas</th>
+                  <th style={{ padding: '15px', textAlign: 'right' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {empresas.map(emp => (
-                  <tr key={emp.id} style={{ borderBottom: '1px solid #f1f5f9', background: emp.status === 'Aceitou' ? '#f0fdf4' : 'white' }}>
-                    <td style={{ padding: '12px' }}><strong>{emp.nome}</strong><br/><span style={{fontSize:'12px', color:'#64748b'}}>{emp.email}</span></td>
-                    <td style={{ padding: '12px' }}>
-                      <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '8px', borderRadius: '6px' }}>
+                {empresasFiltradas.map(emp => (
+                  <tr key={`desktop-${emp.id}`} style={{ borderTop: '1px solid #f1f5f9', background: emp.status === 'Aceitou' ? '#f0fdf4' : 'white' }}>
+                    <td style={{ padding: '15px' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{emp.nome}</div>
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email} <br/> {emp.telefone}</div>
+                    </td>
+                    <td style={{ padding: '15px' }}>
+                      <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', outline: 'none' }}>
                         <option value="Pendente">⏳ Pendente</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
                       </select>
+                      {emp.proposta_enviada_em && <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '5px' }}>✓ Proposta Enviada</div>}
                     </td>
-                    <td style={{ padding: '12px' }}>
+                    <td style={{ padding: '15px' }}>
                       {emp.status === 'Aceitou' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <input type="number" placeholder="€" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '80px', padding: '6px' }} />
+                          <input type="number" placeholder="Valor €" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '100px', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                          <button onClick={() => updateCampo(emp.id, 'recibo_enviado', !emp.recibo_enviado)} style={{ width: '130px', padding: '6px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', background: emp.recibo_enviado ? '#10b981' : '#ef4444', color: 'white', fontSize: '11px' }}>
+                            {emp.recibo_enviado ? '✅ Recibo Emitido' : '❌ Falta Recibo'}
+                          </button>
                         </div>
-                      ) : '-'}
+                      ) : <span style={{color: '#cbd5e1'}}>-</span>}
                     </td>
-                    <td style={{ padding: '12px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
-                        {emp.status !== 'Aceitou' && <button onClick={() => enviarProposta(emp)} style={{ padding: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px' }}>Enviar</button>}
-                        <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} style={{ padding: '8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px' }}>Apagar</button>
+                    <td style={{ padding: '15px' }}>
+                      <textarea placeholder="Adicionar nota..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '50px', fontSize: '12px', background: '#f8fafc', resize: 'vertical' }}></textarea>
+                    </td>
+                    <td style={{ padding: '15px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        {emp.status !== 'Aceitou' && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email"><Send size={16}/></button>}
+                        <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Trash2 size={16}/></button>
                       </div>
                     </td>
                   </tr>
@@ -177,30 +295,71 @@ export default function App() {
         </div>
       )}
 
-      {/* ABA DE RELATÓRIOS */}
+      {/* === ABA: RELATÓRIOS E ANALÍTICA === */}
       {tab === 'reports' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <div style={{ color: '#64748b', fontSize: '14px', fontWeight: 'bold' }}>Total Angariado</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>{angariado}€</div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+            <button onClick={exportToCSV} className="btn-hover" style={{ padding: '10px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Download size={16}/> Exportar para Excel (.csv)</button>
           </div>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <div style={{ color: '#64748b', fontSize: '14px', fontWeight: 'bold' }}>Patrocínios Fechados</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>{totalAceites}</div>
+          
+          <div className="responsive-grid">
+            <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${PRIMARY_COLOR}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Fundo Angariado</div>
+              <div style={{ fontSize: '38px', fontWeight: '900', color: TEXT_PRIMARY, margin: '5px 0' }}>{angariado}€</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Objetivo: {OBJETIVO}€</div>
+              <div style={{ background: '#e2e8f0', height: '8px', borderRadius: '4px', marginTop: '10px', overflow: 'hidden' }}>
+                <div style={{ width: `${Math.min((angariado/OBJETIVO)*100, 100)}%`, background: PRIMARY_COLOR, height: '100%' }}></div>
+              </div>
+            </div>
+
+            <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: '5px solid #3b82f6', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Parceiros Oficiais</div>
+              <div style={{ fontSize: '38px', fontWeight: '900', color: '#3b82f6', margin: '5px 0' }}>{totalAceites}</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>De {empresas.length} contactos efetuados</div>
+            </div>
+
+            <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${recibosPendentes > 0 ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Contabilidade (Recibos)</div>
+              <div style={{ fontSize: '38px', fontWeight: '900', color: recibosPendentes > 0 ? '#ef4444' : '#10b981', margin: '5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {recibosPendentes} {recibosPendentes > 0 ? <AlertTriangle size={30}/> : <CheckCircle size={30}/>}
+              </div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Recibos pendentes de emissão</div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ABA DE NOVIDADES / DIÁRIO DE BORDO */}
+      {/* === ABA: DIÁRIO DE BORDO === */}
       {tab === 'broadcast' && (
-        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ marginTop: 0, fontSize: '20px' }}>Diário de Bordo Oficial</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
-            <input type="text" value={bAssunto} onChange={e=>setBAssunto(e.target.value)} placeholder="Assunto..." style={{ width: '100%', padding: '12px', borderRadius: '6px' }} />
-            <textarea value={bMensagem} onChange={e=>setBMensagem(e.target.value)} rows="5" placeholder="Escreva a novidade / atualização..." style={{ width: '100%', padding: '12px', borderRadius: '6px' }}></textarea>
-            <input type="text" value={bFoto} onChange={e=>setBFoto(e.target.value)} placeholder="Link do Álbum de Fotos (Cloud) ou Imagem 📸" style={{ width: '100%', padding: '12px', borderRadius: '6px' }} />
-            <input type="text" value={bVideo} onChange={e=>setBVideo(e.target.value)} placeholder="Link do Vídeo ▶️" style={{ width: '100%', padding: '12px', borderRadius: '6px' }} />
-            <button onClick={enviarBroadcast} style={{ padding: '15px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>🚀 Enviar para {totalAceites} Parceiros</button>
+        <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', maxWidth: '800px', margin: '0 auto', border: `1px solid ${PRIMARY_COLOR}` }}>
+          <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '24px', fontWeight: '900' }}>Diário de Bordo 🇮🇪</h2>
+          <p style={{ color: '#64748b', fontSize: '15px' }}>Comunica novidades diretamente para as <b>{totalAceites} empresas</b> que já garantiram o patrocínio.</p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '30px' }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155' }}>Assunto do Email</label>
+              <input type="text" value={bAssunto} onChange={e=>setBAssunto(e.target.value)} placeholder="Ex: Medalha de Ouro em Acro Dance! 🥇🏆" style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '16px' }} />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155' }}>Mensagem aos Patrocinadores</label>
+              <textarea value={bMensagem} onChange={e=>setBMensagem(e.target.value)} rows="6" placeholder="Escreva a atualização aqui..." style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '15px', resize: 'vertical' }}></textarea>
+            </div>
+
+            <div className="responsive-grid" style={{ gap: '15px' }}>
+              <div>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>Link Imagem/Álbum 📸</label>
+                <input type="text" value={bFoto} onChange={e=>setBFoto(e.target.value)} placeholder="URL" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>Link Vídeo ▶️</label>
+                <input type="text" value={bVideo} onChange={e=>setBVideo(e.target.value)} placeholder="URL YouTube/Insta" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+              </div>
+            </div>
+
+            <button onClick={enviarBroadcast} className="btn-hover" style={{ padding: '18px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', marginTop: '10px' }}>
+              🚀 Disparar para {totalAceites} Parceiros Oficiais
+            </button>
           </div>
         </div>
       )}
