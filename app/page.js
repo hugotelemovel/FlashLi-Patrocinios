@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud } from 'lucide-react';
+import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
@@ -16,6 +16,7 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [idioma, setIdioma] = useState('PT');
+  const [dataFollowup, setDataFollowup] = useState('');
 
   const [bAssunto, setBAssunto] = useState('');
   const [bMensagem, setBMensagem] = useState('');
@@ -49,11 +50,14 @@ export default function App() {
     e.preventDefault();
     if (!nome || !email) return;
     showMessage('A adicionar parceiro...', 'info');
-    const { data, error } = await supabase.from('patrocinadores').insert([{ nome, email, telefone, idioma, status: 'Pendente' }]).select();
+    const { data, error } = await supabase.from('patrocinadores').insert([{ 
+      nome, email, telefone, idioma, status: 'Pendente', data_followup: dataFollowup || null 
+    }]).select();
+    
     if (error) showMessage(`❌ ERRO: ${error.message}`, 'error');
     else if (data) {
       setEmpresas([data[0], ...empresas]);
-      setNome(''); setEmail(''); setTelefone('');
+      setNome(''); setEmail(''); setTelefone(''); setDataFollowup('');
       showMessage('✅ Parceiro adicionado com sucesso!', 'success');
     }
   }
@@ -81,25 +85,20 @@ export default function App() {
         body: JSON.stringify(empresa)
       });
       if (res.ok) {
-        showMessage(`✅ Enviado!`, 'success');
+        showMessage(`✅ Enviado com sucesso!`, 'success');
         updateCampo(empresa.id, 'proposta_enviada_em', new Date().toISOString());
       } else showMessage(`❌ Falha no envio`, 'error');
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
-  // --- NOVA FUNÇÃO DE UPLOAD DE FOTOS SOLTAS ---
   async function uploadFotoDireta(e) {
     const file = e.target.files[0];
     if (!file) return;
-    
     setUploadingFoto(true);
     showMessage('A carregar foto para a nuvem...', 'info');
-    
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
-    
     const { data, error } = await supabase.storage.from('fotos').upload(fileName, file);
-    
     if (error) {
       showMessage(`❌ Erro no upload: ${error.message}`, 'error');
     } else {
@@ -128,28 +127,42 @@ export default function App() {
   }
 
   function exportToCSV() {
-    const headers = ['Nome', 'Email', 'Telefone', 'Idioma', 'Estado', 'Valor (€)', 'Recibo Emitido', 'Notas'];
+    const headers = ['Nome', 'Email', 'Telefone', 'Idioma', 'Estado', 'Valor (€)', 'Escalão', 'Recibo', 'Logo Recebido', 'Redes Sociais', 'Follow-up'];
     const rows = empresas.map(emp => [
-      `"${emp.nome}"`, emp.email, emp.telefone || '', emp.idioma, emp.status, emp.valor || 0, emp.recibo_enviado ? 'Sim' : 'Não', `"${emp.notas || ''}"`
+      `"${emp.nome}"`, emp.email, emp.telefone || '', emp.idioma, emp.status, emp.valor || 0, getEscalao(emp.valor).nome, 
+      emp.recibo_enviado ? 'Sim' : 'Não', emp.logo_recebido ? 'Sim' : 'Não', emp.redes_sociais ? 'Sim' : 'Não', emp.data_followup || ''
     ]);
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `FlashLi_Patrocinadores.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    link.setAttribute("download", `FlashLi_CRM_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
 
+  // --- LÓGICA DE NEGÓCIO (MEIO E FIM) ---
   const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
   const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
-  const recibosPendentes = empresas.filter(e => e.status === 'Aceitou' && !e.recibo_enviado).length;
+  
+  // Avisos de Fim de Funil (Tarefas Pendentes)
+  const tarefasPendentes = empresas.filter(e => e.status === 'Aceitou' && (!e.recibo_enviado || !e.logo_recebido || !e.redes_sociais)).length;
+  
+  // Avisos de Início de Funil (Follow-ups Atrasados)
+  const hoje = new Date().toISOString().split('T')[0];
+  const followupsAtrasados = empresas.filter(e => e.status === 'Pendente' && e.data_followup && e.data_followup <= hoje).length;
+
+  // Calculador de Escalões Mágicos
+  function getEscalao(valor) {
+    const v = Number(valor);
+    if (!v || v === 0) return { nome: '-', cor: '#cbd5e1', icon: '' };
+    if (v < 50) return { nome: 'Apoiante', cor: '#b45309', icon: '🥉' }; // Bronze
+    if (v < 150) return { nome: 'Prata', cor: '#94a3b8', icon: '🥈' }; // Prata
+    if (v < 300) return { nome: 'Ouro', cor: '#eab308', icon: '🥇' }; // Ouro
+    return { nome: 'Diamante', cor: '#3b82f6', icon: '💎' }; // Diamante
+  }
 
   let empresasFiltradas = empresas.filter(emp => emp.nome.toLowerCase().includes(searchTerm.toLowerCase()) || emp.email.toLowerCase().includes(searchTerm.toLowerCase()));
-  if (filterStatus !== 'Todos') {
-    empresasFiltradas = empresasFiltradas.filter(emp => emp.status === filterStatus);
-  }
+  if (filterStatus !== 'Todos') empresasFiltradas = empresasFiltradas.filter(emp => emp.status === filterStatus);
 
   if (loading) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>A carregar Super App... ⏳</div>;
 
@@ -161,6 +174,8 @@ export default function App() {
         .desktop-table { display: none; }
         .mobile-card { background: white; border-radius: 12px; padding: 15px; border: 1px solid #e2e8f0; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .flex-wrap-mobile { flex-wrap: wrap; }
+        .task-checkbox { display: flex; alignItems: center; gap: 8px; font-size: 12px; cursor: pointer; padding: 4px 0; }
+        .task-checkbox:hover { opacity: 0.8; }
         
         @media (min-width: 768px) {
           .responsive-grid { grid-template-columns: repeat(3, 1fr); }
@@ -168,9 +183,8 @@ export default function App() {
           .mobile-card { display: none; }
           .flex-wrap-mobile { flex-wrap: nowrap; }
         }
-        
         input, select, textarea { box-sizing: border-box; }
-        .btn-hover:hover { opacity: 0.9; transform: scale(0.98); }
+        .btn-hover:hover { opacity: 0.9; transform: scale(0.98); transition: 0.2s; }
       `}} />
 
       {/* CABEÇALHO */}
@@ -185,8 +199,11 @@ export default function App() {
         
         <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' }}>
           <button onClick={() => setTab('crm')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'crm' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'crm' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><Users size={18}/> Pipeline CRM</button>
-          <button onClick={() => setTab('reports')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'reports' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'reports' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><BarChart3 size={18}/> Dashboards</button>
-          <button onClick={() => setTab('broadcast')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'broadcast' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'broadcast' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><ImageIcon size={18}/> Diário Rumo a Dublin</button>
+          <button onClick={() => setTab('reports')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'reports' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'reports' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>
+            <BarChart3 size={18}/> Dashboards 
+            {(followupsAtrasados > 0 || tarefasPendentes > 0) && <span style={{background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '11px'}}>{followupsAtrasados + tarefasPendentes}</span>}
+          </button>
+          <button onClick={() => setTab('broadcast')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'broadcast' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'broadcast' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><ImageIcon size={18}/> Diário de Bordo</button>
         </div>
       </header>
 
@@ -195,15 +212,26 @@ export default function App() {
       {/* === ABA: PIPELINE CRM === */}
       {tab === 'crm' && (
         <div style={{ background: 'transparent' }}>
+          
           <form onSubmit={addEmpresa} style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="flex-wrap-mobile">
-            <h3 style={{ width: '100%', margin: '0 0 10px 0', fontSize: '16px' }}>Novo Contacto</h3>
-            <input type="text" placeholder="Nome da Empresa" value={nome} onChange={e => setNome(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} required />
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>Nova Prospecção</h3>
+            </div>
+            
+            <input type="text" placeholder="Empresa (Ex: Talho Central)" value={nome} onChange={e => setNome(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} required />
             <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} required />
             <input type="text" placeholder="Telefone" value={telefone} onChange={e => setTelefone(e.target.value)} style={{ flex: '1 1 120px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-            <select value={idioma} onChange={e => setIdioma(e.target.value)} style={{ flex: '1 1 80px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+            
+            {/* NOVO CAMPO: FOLLOW UP */}
+            <div style={{ flex: '1 1 140px', position: 'relative' }}>
+              <span style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 5px', fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>Ligar a:</span>
+              <input type="date" value={dataFollowup} onChange={e => setDataFollowup(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', color: '#334155' }} />
+            </div>
+
+            <select value={idioma} onChange={e => setIdioma(e.target.value)} style={{ flex: '1 1 70px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
               <option value="PT">🇵🇹</option><option value="ES">🇪🇸</option>
             </select>
-            <button type="submit" className="btn-hover" style={{ flex: '1 1 100%', padding: '12px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Guardar e Adicionar</button>
+            <button type="submit" className="btn-hover" style={{ flex: '1 1 100%', padding: '14px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>+ Adicionar ao Pipeline</button>
           </form>
 
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center' }} className="flex-wrap-mobile">
@@ -213,90 +241,127 @@ export default function App() {
             </div>
             <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', flex: '1 1 100%' }}>
               {['Todos', 'Pendente', 'Aceitou', 'Recusou'].map(status => (
-                <button key={status} onClick={() => setFilterStatus(status)} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: filterStatus === status ? PRIMARY_COLOR : '#e2e8f0', color: filterStatus === status ? 'white' : '#475569', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>
+                <button key={status} onClick={() => setFilterStatus(status)} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: filterStatus === status ? PRIMARY_COLOR : '#e2e8f0', color: filterStatus === status ? 'white' : '#475569', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>
                   {status === 'Aceitou' ? '✅ Aceites' : status === 'Recusou' ? '❌ Recusados' : status === 'Pendente' ? '⏳ Pendentes' : '🌍 Todos'}
                 </button>
               ))}
             </div>
           </div>
 
-          {empresasFiltradas.map(emp => (
-            <div key={`mobile-${emp.id}`} className="mobile-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                <div>
-                  <div style={{ fontWeight: '900', fontSize: '16px', color: TEXT_PRIMARY }}>{emp.nome}</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email} {emp.telefone && `• ${emp.telefone}`}</div>
-                </div>
-                <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', background: emp.status === 'Aceitou' ? '#dcfce7' : emp.status === 'Pendente' ? '#fef9c3' : '#fee2e2' }}>
-                  <option value="Pendente">⏳ Pendente</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
-                </select>
-              </div>
-              {emp.status === 'Aceitou' && (
-                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px dashed #cbd5e1', marginBottom: '10px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>Gestão Financeira:</div>
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <input type="number" placeholder="Valor €" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '100px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
-                    <button onClick={() => updateCampo(emp.id, 'recibo_enviado', !emp.recibo_enviado)} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', background: emp.recibo_enviado ? '#10b981' : '#ef4444', color: 'white' }}>
-                      {emp.recibo_enviado ? <><CheckCircle size={16}/> Recibo Emitido</> : <><X size={16}/> Faltar Emitir Recibo</>}
-                    </button>
-                  </div>
-                </div>
-              )}
-              <input type="text" placeholder="Adicionar notas (Ex: Ligar à tarde)..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', marginBottom: '10px', background: '#f8fafc' }} />
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {emp.status !== 'Aceitou' && (
-                  <button onClick={() => enviarProposta(emp)} style={{ flex: 1, padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Send size={14}/> Enviar Proposta</button>
-                )}
-                <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px' }}><Trash2 size={16}/></button>
-              </div>
-            </div>
-          ))}
+          {/* LISTA MOBILE */}
+          {empresasFiltradas.map(emp => {
+            const escalao = getEscalao(emp.valor);
+            const atrasado = emp.status === 'Pendente' && emp.data_followup && emp.data_followup <= hoje;
 
+            return (
+              <div key={`mobile-${emp.id}`} className="mobile-card" style={{ borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : atrasado ? '4px solid #ef4444' : '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                  <div>
+                    <div style={{ fontWeight: '900', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      {emp.nome} {emp.status === 'Aceitou' && escalao.icon}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email}</div>
+                  </div>
+                  <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', background: emp.status === 'Aceitou' ? '#dcfce7' : emp.status === 'Pendente' ? '#fef9c3' : '#fee2e2' }}>
+                    <option value="Pendente">⏳ Pendente</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
+                  </select>
+                </div>
+
+                {/* AVISO DE FOLLOW-UP */}
+                {emp.status === 'Pendente' && emp.data_followup && (
+                  <div style={{ fontSize: '11px', color: atrasado ? '#ef4444' : '#64748b', fontWeight: atrasado ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '10px', background: atrasado ? '#fee2e2' : '#f1f5f9', padding: '4px 8px', borderRadius: '4px', width: 'fit-content' }}>
+                    <Calendar size={12}/> Ligar a: {new Date(emp.data_followup).toLocaleDateString('pt-PT')} {atrasado && '(Atrasado!)'}
+                  </div>
+                )}
+
+                {/* ZONA DE ENTREGÁVEIS (ACEITOU) */}
+                {emp.status === 'Aceitou' && (
+                  <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px dashed #cbd5e1', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                      <input type="number" placeholder="Valor €" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '90px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: escalao.cor }}>{escalao.nome}</div>
+                    </div>
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '4px' }}>Tarefas (Checklist):</div>
+                      <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Emitir Recibo Oficial</label>
+                      <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> Logo da Empresa Recebido</label>
+                      <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> Agradecimento nas Redes</label>
+                    </div>
+                  </div>
+                )}
+
+                <input type="text" placeholder="Notas/Observações..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', marginBottom: '10px', background: '#f8fafc' }} />
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {emp.status !== 'Aceitou' && (
+                    <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ flex: 1, padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Send size={14}/> Enviar Proposta</button>
+                  )}
+                  <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px' }}><Trash2 size={16}/></button>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* LISTA DESKTOP */}
           <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="desktop-table">
             <table className="desktop-table">
               <thead style={{ background: '#f8fafc', color: '#64748b', textAlign: 'left', fontSize: '13px' }}>
                 <tr>
-                  <th style={{ padding: '15px' }}>Parceiro / Empresa</th>
+                  <th style={{ padding: '15px' }}>Parceiro</th>
                   <th style={{ padding: '15px' }}>Estado do Negócio</th>
-                  <th style={{ padding: '15px' }}>Financeiro & Recibos</th>
-                  <th style={{ padding: '15px' }}>Notas Internas</th>
+                  <th style={{ padding: '15px' }}>Entregáveis (Checklist)</th>
+                  <th style={{ padding: '15px' }}>Notas & Follow-up</th>
                   <th style={{ padding: '15px', textAlign: 'right' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {empresasFiltradas.map(emp => (
-                  <tr key={`desktop-${emp.id}`} style={{ borderTop: '1px solid #f1f5f9', background: emp.status === 'Aceitou' ? '#f0fdf4' : 'white' }}>
-                    <td style={{ padding: '15px' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{emp.nome}</div>
-                      <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email} <br/> {emp.telefone}</div>
-                    </td>
-                    <td style={{ padding: '15px' }}>
-                      <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', outline: 'none' }}>
-                        <option value="Pendente">⏳ Pendente</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
-                      </select>
-                      {emp.proposta_enviada_em && <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '5px' }}>✓ Proposta Enviada</div>}
-                    </td>
-                    <td style={{ padding: '15px' }}>
-                      {emp.status === 'Aceitou' ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <input type="number" placeholder="Valor €" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '100px', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
-                          <button onClick={() => updateCampo(emp.id, 'recibo_enviado', !emp.recibo_enviado)} style={{ width: '130px', padding: '6px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', background: emp.recibo_enviado ? '#10b981' : '#ef4444', color: 'white', fontSize: '11px' }}>
-                            {emp.recibo_enviado ? '✅ Recibo Emitido' : '❌ Falta Recibo'}
-                          </button>
+                {empresasFiltradas.map(emp => {
+                  const escalao = getEscalao(emp.valor);
+                  const atrasado = emp.status === 'Pendente' && emp.data_followup && emp.data_followup <= hoje;
+
+                  return (
+                    <tr key={`desktop-${emp.id}`} style={{ borderTop: '1px solid #f1f5f9', background: emp.status === 'Aceitou' ? '#f0fdf4' : 'white' }}>
+                      <td style={{ padding: '15px', borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : '4px solid transparent' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}>{emp.nome} {emp.status === 'Aceitou' && escalao.icon}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email} <br/> {emp.telefone}</div>
+                      </td>
+                      <td style={{ padding: '15px' }}>
+                        <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', outline: 'none' }}>
+                          <option value="Pendente">⏳ Pendente</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
+                        </select>
+                        {emp.proposta_enviada_em && <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '5px' }}>✓ Proposta Enviada</div>}
+                      </td>
+                      <td style={{ padding: '15px' }}>
+                        {emp.status === 'Aceitou' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '5px' }}>
+                              <input type="number" placeholder="€" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '80px', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
+                              <span style={{fontSize: '11px', fontWeight: 'bold', color: escalao.cor}}>{escalao.nome}</span>
+                            </div>
+                            <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> 1. Recibo Emitido</label>
+                            <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> 2. Logo Recebido</label>
+                            <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> 3. Post nas Redes</label>
+                          </div>
+                        ) : <span style={{color: '#cbd5e1'}}>-</span>}
+                      </td>
+                      <td style={{ padding: '15px' }}>
+                        {emp.status === 'Pendente' && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>Ligar a:</span>
+                            <input type="date" value={emp.data_followup || ''} onChange={(e) => updateCampo(emp.id, 'data_followup', e.target.value)} style={{ padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '11px', background: atrasado ? '#fee2e2' : 'white', color: atrasado ? '#ef4444' : 'inherit' }} />
+                          </div>
+                        )}
+                        <textarea placeholder="Notas..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '40px', fontSize: '12px', background: '#f8fafc', resize: 'vertical' }}></textarea>
+                      </td>
+                      <td style={{ padding: '15px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          {emp.status !== 'Aceitou' && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email"><Send size={16}/></button>}
+                          <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Trash2 size={16}/></button>
                         </div>
-                      ) : <span style={{color: '#cbd5e1'}}>-</span>}
-                    </td>
-                    <td style={{ padding: '15px' }}>
-                      <textarea placeholder="Adicionar nota..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '50px', fontSize: '12px', background: '#f8fafc', resize: 'vertical' }}></textarea>
-                    </td>
-                    <td style={{ padding: '15px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                        {emp.status !== 'Aceitou' && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email"><Send size={16}/></button>}
-                        <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Trash2 size={16}/></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -307,7 +372,7 @@ export default function App() {
       {tab === 'reports' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
-            <button onClick={exportToCSV} className="btn-hover" style={{ padding: '10px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Download size={16}/> Exportar para Excel (.csv)</button>
+            <button onClick={exportToCSV} className="btn-hover" style={{ padding: '10px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Download size={16}/> Exportar Ficheiro Excel (.csv)</button>
           </div>
           
           <div className="responsive-grid">
@@ -321,17 +386,27 @@ export default function App() {
             </div>
 
             <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: '5px solid #3b82f6', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Parceiros Oficiais</div>
+              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Parceiros / Conversão</div>
               <div style={{ fontSize: '38px', fontWeight: '900', color: '#3b82f6', margin: '5px 0' }}>{totalAceites}</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>De {empresas.length} contactos efetuados</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>{totalContactos > 0 ? ((totalAceites / totalContactos) * 100).toFixed(0) : 0}% de taxa de fecho</div>
             </div>
 
-            <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${recibosPendentes > 0 ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Contabilidade (Recibos)</div>
-              <div style={{ fontSize: '38px', fontWeight: '900', color: recibosPendentes > 0 ? '#ef4444' : '#10b981', margin: '5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {recibosPendentes} {recibosPendentes > 0 ? <AlertTriangle size={30}/> : <CheckCircle size={30}/>}
+            {/* AVISOS DE FIM DE FUNIL (Checklists em falta) */}
+            <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${tarefasPendentes > 0 ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Tarefas (Recibos e Logos)</div>
+              <div style={{ fontSize: '38px', fontWeight: '900', color: tarefasPendentes > 0 ? '#ef4444' : '#10b981', margin: '5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {tarefasPendentes} {tarefasPendentes > 0 ? <AlertTriangle size={30}/> : <CheckCircle size={30}/>}
               </div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Recibos pendentes de emissão</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Parceiros com tarefas de fecho pendentes</div>
+            </div>
+
+            {/* AVISOS DE INÍCIO DE FUNIL (Follow-ups) */}
+            <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${followupsAtrasados > 0 ? '#f97316' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Alertas de Chamadas</div>
+              <div style={{ fontSize: '38px', fontWeight: '900', color: followupsAtrasados > 0 ? '#f97316' : '#10b981', margin: '5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {followupsAtrasados} {followupsAtrasados > 0 ? <Phone size={30}/> : <CheckCircle size={30}/>}
+              </div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Follow-ups atrasados / para hoje</div>
             </div>
           </div>
         </div>
@@ -341,7 +416,7 @@ export default function App() {
       {tab === 'broadcast' && (
         <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', maxWidth: '800px', margin: '0 auto', border: `1px solid ${PRIMARY_COLOR}` }}>
           <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '24px', fontWeight: '900' }}>Diário de Bordo 🇮🇪</h2>
-          <p style={{ color: '#64748b', fontSize: '15px' }}>Comunica novidades diretamente para as <b>{totalAceites} empresas</b> que já garantiram o patrocínio.</p>
+          <p style={{ color: '#64748b', fontSize: '15px' }}>Comunica novidades e resultados diretamente para as <b>{totalAceites} empresas</b> oficiais.</p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '30px' }}>
             <div>
@@ -355,28 +430,26 @@ export default function App() {
             </div>
 
             <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '10px', color: '#334155', fontSize: '14px' }}>Fotografia / Imagem da Novidade 📸</label>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '10px', color: '#334155', fontSize: '14px' }}>Adicionar Imagem / Álbum 📸</label>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {/* 1. Escolher ficheiro solto */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <label style={{ background: TEXT_PRIMARY, color: 'white', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px' }}>
-                    <UploadCloud size={16}/> Escolher Foto
+                  <label className="btn-hover" style={{ background: TEXT_PRIMARY, color: 'white', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px' }}>
+                    <UploadCloud size={16}/> Enviar Foto Solta do Telemóvel
                     <input type="file" accept="image/*" onChange={uploadFotoDireta} style={{ display: 'none' }} disabled={uploadingFoto} />
                   </label>
-                  <span style={{ fontSize: '13px', color: '#64748b' }}>{uploadingFoto ? 'A carregar para a nuvem...' : 'Faz upload direto da galeria'}</span>
+                  <span style={{ fontSize: '13px', color: '#64748b' }}>{uploadingFoto ? 'A carregar para a nuvem...' : '(Guarda e anexa ao email)'}</span>
                 </div>
                 
                 <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>OU</div>
                 
-                {/* 2. Colar link */}
-                <input type="text" value={bFoto} onChange={e=>setBFoto(e.target.value)} placeholder="Cola aqui um link do iCloud/Google Fotos se preferires um álbum" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                <input type="text" value={bFoto} onChange={e=>setBFoto(e.target.value)} placeholder="Cola aqui um link partilhado (Google Fotos / iCloud)" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
               </div>
             </div>
 
             <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>Link Vídeo ▶️</label>
-              <input type="text" value={bVideo} onChange={e=>setBVideo(e.target.value)} placeholder="URL YouTube/Insta" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>Adicionar Vídeo ▶️</label>
+              <input type="text" value={bVideo} onChange={e=>setBVideo(e.target.value)} placeholder="Link direto do YouTube / Instagram" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
             </div>
 
             <button onClick={enviarBroadcast} className="btn-hover" style={{ padding: '18px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', marginTop: '10px' }}>
