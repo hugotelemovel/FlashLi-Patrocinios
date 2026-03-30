@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square } from 'lucide-react';
+import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
@@ -23,6 +23,7 @@ export default function App() {
   const [bFoto, setBFoto] = useState('');
   const [bVideo, setBVideo] = useState('');
   const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [nomeArquivoTemp, setNomeArquivoTemp] = useState(''); // Variável para a auto-destruição da foto!
 
   const OBJETIVO = 3000;
   const PRIMARY_COLOR = '#d4af37'; 
@@ -91,39 +92,60 @@ export default function App() {
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
+  // --- FUNÇÃO ATUALIZADA: UPLOAD COM PREPARAÇÃO PARA AUTO-DESTRUIÇÃO ---
   async function uploadFotoDireta(e) {
     const file = e.target.files[0];
     if (!file) return;
+    
     setUploadingFoto(true);
-    showMessage('A carregar foto para a nuvem...', 'info');
+    showMessage('A carregar foto para a nuvem temporária...', 'info');
+    
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+    
     const { data, error } = await supabase.storage.from('fotos').upload(fileName, file);
+    
     if (error) {
       showMessage(`❌ Erro no upload: ${error.message}`, 'error');
     } else {
       const { data: publicUrlData } = supabase.storage.from('fotos').getPublicUrl(fileName);
       setBFoto(publicUrlData.publicUrl);
-      showMessage('📸 Foto carregada e pronta a enviar!', 'success');
+      setNomeArquivoTemp(fileName); // Guarda o nome do ficheiro para apagar no final
+      showMessage('📸 Foto pronta! (Será apagada da nuvem após o envio)', 'success');
     }
     setUploadingFoto(false);
   }
 
+  // --- FUNÇÃO ATUALIZADA: ENVIO E AUTO-DESTRUIÇÃO ---
   async function enviarBroadcast() {
     const aceites = empresas.filter(e => e.status === 'Aceitou');
     if (aceites.length === 0) return showMessage('Sem parceiros ativos para receber novidades.', 'error');
-    showMessage(`A enviar diário para ${aceites.length} parceiros...`, 'info');
+    showMessage(`A embutir foto e a enviar para ${aceites.length} parceiros...`, 'info');
+    
     try {
       const res = await fetch('/api/send-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: bFoto, videoUrl: bVideo, empresas: aceites })
       });
+      
       if (res.ok) {
-        showMessage('✅ Novidades entregues!', 'success');
-        setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo('');
-      } else showMessage('❌ Erro no envio.', 'error');
-    } catch (err) { showMessage('Erro técnico.', 'error'); }
+        showMessage('✅ Novidades entregues com sucesso!', 'success');
+        
+        // A MAGIA DA LIMPEZA (AUTO-DESTRUIR FOTO NO SUPABASE)
+        if (nomeArquivoTemp) {
+          await supabase.storage.from('fotos').remove([nomeArquivoTemp]);
+          console.log("Foto temporária apagada do Supabase para poupar espaço!");
+        }
+        
+        // Limpar o formulário todo
+        setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo(''); setNomeArquivoTemp('');
+      } else {
+        showMessage('❌ Erro no envio dos emails.', 'error');
+      }
+    } catch (err) { 
+      showMessage('Erro técnico no servidor.', 'error'); 
+    }
   }
 
   function exportToCSV() {
@@ -140,25 +162,22 @@ export default function App() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
 
-  // --- LÓGICA DE NEGÓCIO (MEIO E FIM) ---
+  // --- LÓGICA DE NEGÓCIO ---
   const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
   const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
   
-  // Avisos de Fim de Funil (Tarefas Pendentes)
   const tarefasPendentes = empresas.filter(e => e.status === 'Aceitou' && (!e.recibo_enviado || !e.logo_recebido || !e.redes_sociais)).length;
   
-  // Avisos de Início de Funil (Follow-ups Atrasados)
   const hoje = new Date().toISOString().split('T')[0];
   const followupsAtrasados = empresas.filter(e => e.status === 'Pendente' && e.data_followup && e.data_followup <= hoje).length;
 
-  // Calculador de Escalões Mágicos
   function getEscalao(valor) {
     const v = Number(valor);
     if (!v || v === 0) return { nome: '-', cor: '#cbd5e1', icon: '' };
-    if (v < 50) return { nome: 'Apoiante', cor: '#b45309', icon: '🥉' }; // Bronze
-    if (v < 150) return { nome: 'Prata', cor: '#94a3b8', icon: '🥈' }; // Prata
-    if (v < 300) return { nome: 'Ouro', cor: '#eab308', icon: '🥇' }; // Ouro
-    return { nome: 'Diamante', cor: '#3b82f6', icon: '💎' }; // Diamante
+    if (v < 50) return { nome: 'Apoiante', cor: '#b45309', icon: '🥉' }; 
+    if (v < 150) return { nome: 'Prata', cor: '#94a3b8', icon: '🥈' }; 
+    if (v < 300) return { nome: 'Ouro', cor: '#eab308', icon: '🥇' }; 
+    return { nome: 'Diamante', cor: '#3b82f6', icon: '💎' }; 
   }
 
   let empresasFiltradas = empresas.filter(emp => emp.nome.toLowerCase().includes(searchTerm.toLowerCase()) || emp.email.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -222,7 +241,6 @@ export default function App() {
             <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} required />
             <input type="text" placeholder="Telefone" value={telefone} onChange={e => setTelefone(e.target.value)} style={{ flex: '1 1 120px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
             
-            {/* NOVO CAMPO: FOLLOW UP */}
             <div style={{ flex: '1 1 140px', position: 'relative' }}>
               <span style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 5px', fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>Ligar a:</span>
               <input type="date" value={dataFollowup} onChange={e => setDataFollowup(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', color: '#334155' }} />
@@ -267,14 +285,12 @@ export default function App() {
                   </select>
                 </div>
 
-                {/* AVISO DE FOLLOW-UP */}
                 {emp.status === 'Pendente' && emp.data_followup && (
                   <div style={{ fontSize: '11px', color: atrasado ? '#ef4444' : '#64748b', fontWeight: atrasado ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '10px', background: atrasado ? '#fee2e2' : '#f1f5f9', padding: '4px 8px', borderRadius: '4px', width: 'fit-content' }}>
                     <Calendar size={12}/> Ligar a: {new Date(emp.data_followup).toLocaleDateString('pt-PT')} {atrasado && '(Atrasado!)'}
                   </div>
                 )}
 
-                {/* ZONA DE ENTREGÁVEIS (ACEITOU) */}
                 {emp.status === 'Aceitou' && (
                   <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px dashed #cbd5e1', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
@@ -388,10 +404,9 @@ export default function App() {
             <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: '5px solid #3b82f6', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
               <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Parceiros / Conversão</div>
               <div style={{ fontSize: '38px', fontWeight: '900', color: '#3b82f6', margin: '5px 0' }}>{totalAceites}</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>{totalContactos > 0 ? ((totalAceites / totalContactos) * 100).toFixed(0) : 0}% de taxa de fecho</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>{empresas.length > 0 ? ((totalAceites / empresas.length) * 100).toFixed(0) : 0}% de taxa de fecho</div>
             </div>
 
-            {/* AVISOS DE FIM DE FUNIL (Checklists em falta) */}
             <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${tarefasPendentes > 0 ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
               <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Tarefas (Recibos e Logos)</div>
               <div style={{ fontSize: '38px', fontWeight: '900', color: tarefasPendentes > 0 ? '#ef4444' : '#10b981', margin: '5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -400,7 +415,6 @@ export default function App() {
               <div style={{ fontSize: '13px', color: '#94a3b8' }}>Parceiros com tarefas de fecho pendentes</div>
             </div>
 
-            {/* AVISOS DE INÍCIO DE FUNIL (Follow-ups) */}
             <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${followupsAtrasados > 0 ? '#f97316' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
               <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Alertas de Chamadas</div>
               <div style={{ fontSize: '38px', fontWeight: '900', color: followupsAtrasados > 0 ? '#f97316' : '#10b981', margin: '5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
