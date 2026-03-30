@@ -1,0 +1,29 @@
+🚀 COMO MUDAR PARA O GMAIL E ENVIAR PARA TODA A GENTE!
+======================================================
+
+Esquece o Resend. Agora a tua app usa o teu próprio Gmail para enviar emails a qualquer empresa do mundo!
+
+1. ATUALIZAR O GITHUB:
+   - Apaga a pasta 'node_modules' se a tiveres aí, e apaga o ficheiro 'package-lock.json'.
+   - Substitui o ficheiro 'package.json' e a pasta 'api' inteira no teu GitHub com estes novos ficheiros.
+   - (A tua pasta 'public' e o teu 'app/page.js' não mudaram, podes deixá-los como estão).
+
+2. GERAR A SENHA NO GMAIL (MUITO IMPORTANTE):
+   - Vai ao teu Gmail.
+   - Clica na tua foto (canto superior direito) > "Gerir Conta Google".
+   - Vai a "Segurança".
+   - Na barra de pesquisa escreve "Senhas de app" ou "App Passwords".
+   - Cria uma chamada "App Patrocinios" e guarda o código de 16 letras!
+
+3. CONFIGURAR O VERCEL:
+   - Vai ao teu projeto no Vercel > Settings > Environment Variables.
+   - APAGA a variável 'RESEND_API_KEY' (já não precisas dela).
+   - Cria duas variáveis novas:
+     * NOME: EMAIL_USER
+       VALOR: o_teu_email_pessoal@gmail.com
+     * NOME: EMAIL_PASS
+       VALOR: a_tua_senha_de_16_letras_do_passo_anterior (sem espaços)
+
+4. O TOQUE FINAL:
+   - No Vercel, vai a "Deployments", clica nos 3 pontinhos do último e faz "Redeploy".
+   - Vai à tua App, adiciona o email do teu vizinho, da tua prima ou do Talho Central, e carrega em ENVIAR!
