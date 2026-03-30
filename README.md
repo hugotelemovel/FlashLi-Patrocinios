@@ -75,3 +75,4 @@ No Desktop: Apresenta uma tabela de CRM profissional e expandida.
 No Mobile (iPhone/Android): Transforma-se num sistema de Cards (Cartões) elegantes, com inputs táteis otimizados e botões fáceis de clicar em andamento.
 
 Desenvolvido com foco total na angariação eficiente e na relação transparente com os patrocinadores. 🌍🇮🇪
+
