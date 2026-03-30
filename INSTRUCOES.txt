@@ -1,13 +1,25 @@
-COMO ARRANCAR COM A TUA APP (Flash Li Sponsors)
+🚀 COMO INSTALAR A SUPER APP "CLOUD" (PASSO A PASSO)
 ===================================================
 
-1. Cria uma conta no GitHub (github.com) e faz upload desta pasta inteira para lá (como um repositório).
-2. Cria uma conta no Vercel (vercel.com) e liga o teu GitHub.
-3. Importa este projeto no Vercel.
-4. Cria uma conta na Resend (resend.com) para teres o serviço de emails gratuito. Eles vão dar-te uma "API KEY" (uma chave comprida de letras e números).
-5. No Vercel, nas configurações do teu projeto, vai a "Environment Variables" e adiciona:
-   - Name: RESEND_API_KEY
-   - Value: (Cola a chave que te deram)
-6. Carrega no botão de "Deploy" no Vercel.
+PASSO 1: A BASE DE DADOS (SUPABASE)
+1. Vai a Supabase.com e cria uma conta gratuita.
+2. Cria um Novo Projeto (Project Name: FlashLi, Password: cria uma e guarda-a).
+3. No menu da esquerda, vai ao "SQL Editor".
+4. Copia todo o texto que está no ficheiro "setup.sql" desta pasta, cola lá e clica em "Run" (Isto cria a tabela mágica das empresas!).
+5. No menu esquerdo, vai a Project Settings (roda dentada) > API.
+6. Copia o "Project URL" e a "anon public Key". Vais precisar delas no Vercel.
 
-E pronto! Vais receber um link (ex: patrocinios-matilde.vercel.app) para abrires no telemóvel e enviares novidades de Dublin às tuas empresas!
+PASSO 2: O EMAIL (RESEND)
+1. Se ainda não fizeste, vai a resend.com e cria a "API KEY".
+
+PASSO 3: PUBLICAR A APP (VERCEL)
+1. Coloca esta pasta toda no teu GitHub.
+2. Vai ao Vercel.com e importa o projeto.
+3. Nas Variáveis de Ambiente (Environment Variables), tens de colar estas 3 chaves:
+   - NEXT_PUBLIC_SUPABASE_URL = (O URL do Supabase do Passo 1)
+   - NEXT_PUBLIC_SUPABASE_ANON_KEY = (A chave "anon" do Supabase do Passo 1)
+   - RESEND_API_KEY = (A chave do Resend)
+4. Clica em DEPLOY.
+
+PASSO 4: O TEU PDF (Não esqueças!)
+Lembra-te de colocar o teu PDF verdadeiro na pasta "public" com o nome "Dossier_Matilde_Mota.pdf" antes de meteres no GitHub, para o link de download funcionar perfeitamente!
