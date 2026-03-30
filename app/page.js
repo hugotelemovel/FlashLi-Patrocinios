@@ -105,10 +105,17 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '15px' }}>
+      
+      {/* CABEÇALHO OFICIAL COM LOGO E NOME */}
       <header style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px', background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <h1 style={{ color: '#0f172a', margin: 0, fontSize: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span>🌍</span> Flash Li App
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <img src="/logo.jpg" alt="Logotipo Flash Li" style={{ width: '60px', borderRadius: '50%', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
+          <div>
+            <h1 style={{ color: '#0f172a', margin: 0, fontSize: '20px' }}>Angariação de Fundos</h1>
+            <h2 style={{ color: '#d4af37', margin: 0, fontSize: '15px' }}>DWCup 2026 - Dublin</h2>
+          </div>
+        </div>
+        
         <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' }}>
           <button onClick={() => setTab('crm')} style={{ flexShrink: 0, padding: '10px 15px', background: tab === 'crm' ? '#2563eb' : '#e2e8f0', color: tab === 'crm' ? 'white' : '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Gestão</button>
           <button onClick={() => setTab('reports')} style={{ flexShrink: 0, padding: '10px 15px', background: tab === 'reports' ? '#2563eb' : '#e2e8f0', color: tab === 'reports' ? 'white' : '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Relatórios</button>
@@ -118,6 +125,7 @@ export default function App() {
 
       {msg && <div style={{ padding: '15px', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold', background: msgType === 'error' ? '#fee2e2' : '#dcfce7', color: msgType === 'error' ? '#991b1b' : '#166534' }}>{msg}</div>}
 
+      {/* ABA DE GESTÃO E PROPOSTAS */}
       {tab === 'crm' && (
         <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <form onSubmit={addEmpresa} style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '20px', background: '#f8fafc', padding: '15px', borderRadius: '8px' }}>
@@ -169,6 +177,7 @@ export default function App() {
         </div>
       )}
 
+      {/* ABA DE RELATÓRIOS */}
       {tab === 'reports' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
           <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
@@ -182,13 +191,14 @@ export default function App() {
         </div>
       )}
 
+      {/* ABA DE NOVIDADES / DIÁRIO DE BORDO */}
       {tab === 'broadcast' && (
         <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <h2 style={{ marginTop: 0, fontSize: '20px' }}>Diário de Bordo Oficial</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
             <input type="text" value={bAssunto} onChange={e=>setBAssunto(e.target.value)} placeholder="Assunto..." style={{ width: '100%', padding: '12px', borderRadius: '6px' }} />
-            <textarea value={bMensagem} onChange={e=>setBMensagem(e.target.value)} rows="5" placeholder="Novidade de hoje..." style={{ width: '100%', padding: '12px', borderRadius: '6px' }}></textarea>
-            <input type="text" value={bFoto} onChange={e=>setBFoto(e.target.value)} placeholder="Link de Fotografia 📸" style={{ width: '100%', padding: '12px', borderRadius: '6px' }} />
+            <textarea value={bMensagem} onChange={e=>setBMensagem(e.target.value)} rows="5" placeholder="Escreva a novidade / atualização..." style={{ width: '100%', padding: '12px', borderRadius: '6px' }}></textarea>
+            <input type="text" value={bFoto} onChange={e=>setBFoto(e.target.value)} placeholder="Link do Álbum de Fotos (Cloud) ou Imagem 📸" style={{ width: '100%', padding: '12px', borderRadius: '6px' }} />
             <input type="text" value={bVideo} onChange={e=>setBVideo(e.target.value)} placeholder="Link do Vídeo ▶️" style={{ width: '100%', padding: '12px', borderRadius: '6px' }} />
             <button onClick={enviarBroadcast} style={{ padding: '15px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>🚀 Enviar para {totalAceites} Parceiros</button>
           </div>
