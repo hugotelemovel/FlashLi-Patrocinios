@@ -26,7 +26,7 @@ export default function App() {
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [nomeArquivoTemp, setNomeArquivoTemp] = useState('');
 
-  const OBJETIVO = 3000;
+  const OBJETIVO = 1500€;
   const PRIMARY_COLOR = '#d4af37'; 
   const TEXT_PRIMARY = '#1a1a1a'; 
 
