@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText } from 'lucide-react';
+import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, Pencil } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
@@ -25,6 +25,8 @@ export default function App() {
   const [bVideo, setBVideo] = useState('');
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [nomeArquivoTemp, setNomeArquivoTemp] = useState('');
+  const [mostrarEditar, setMostrarEditar] = useState(false);
+  const [edicao, setEdicao] = useState({ id: null, nome: '', email: '', telefone: '', idioma: 'PT' });
 
   const OBJETIVO = 1500;
   const PRIMARY_COLOR = '#d4af37'; 
@@ -86,6 +88,38 @@ export default function App() {
   async function updateCampo(id, campo, valor) {
     setEmpresas(empresas.map(emp => emp.id === id ? { ...emp, [campo]: valor } : emp));
     await supabase.from('patrocinadores').update({ [campo]: valor }).eq('id', id);
+  }
+
+  function abrirEditor(emp) {
+    setEdicao({
+      id: emp.id,
+      nome: emp.nome || '',
+      email: emp.email || '',
+      telefone: emp.telefone || '',
+      idioma: emp.idioma || 'PT'
+    });
+    setMostrarEditar(true);
+  }
+
+  async function guardarEdicao(e) {
+    e.preventDefault();
+
+    const payload = {
+      nome: edicao.nome,
+      email: edicao.email,
+      telefone: edicao.telefone,
+      idioma: edicao.idioma
+    };
+
+    const { error } = await supabase.from('patrocinadores').update(payload).eq('id', edicao.id);
+    if (error) {
+      showMessage(`❌ Erro a guardar alterações: ${error.message}`, 'error');
+      return;
+    }
+
+    setEmpresas(empresas.map(emp => emp.id === edicao.id ? { ...emp, ...payload } : emp));
+    setMostrarEditar(false);
+    showMessage('✅ Patrocinador atualizado com sucesso!', 'success');
   }
 
   async function eliminarEmpresa(id, nomeEmpresa) {
@@ -338,6 +372,7 @@ export default function App() {
                 <input type="text" placeholder="Notas/Observações..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', marginBottom: '10px', background: '#f8fafc' }} />
 
                 <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => abrirEditor(emp)} className="btn-hover" style={{ padding: '10px', background: '#e0f2fe', color: '#0369a1', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Pencil size={14}/> Editar</button>
                   {emp.status !== 'Aceitou' && (
                     <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ flex: 1, padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Send size={14}/> Enviar Proposta</button>
                   )}
@@ -410,6 +445,7 @@ export default function App() {
                       </td>
                       <td style={{ padding: '15px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button onClick={() => abrirEditor(emp)} className="btn-hover" style={{ padding: '10px', background: '#e0f2fe', color: '#0369a1', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Editar Patrocinador"><Pencil size={16}/></button>
                           {emp.status !== 'Aceitou' && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email"><Send size={16}/></button>}
                           <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Trash2 size={16}/></button>
                         </div>
@@ -541,6 +577,27 @@ export default function App() {
             )}
           </div>
           
+        </div>
+      )}
+
+      {mostrarEditar && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '15px' }}>
+          <form onSubmit={guardarEdicao} style={{ width: '100%', maxWidth: '500px', background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 18px 40px rgba(0,0,0,0.25)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '14px' }}>Editar patrocinador</h3>
+            <div style={{ display: 'grid', gap: '10px' }}>
+              <input type="text" value={edicao.nome} onChange={(e) => setEdicao({ ...edicao, nome: e.target.value })} placeholder="Nome empresa/contacto" required style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+              <input type="email" value={edicao.email} onChange={(e) => setEdicao({ ...edicao, email: e.target.value })} placeholder="Email" required style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+              <input type="text" value={edicao.telefone} onChange={(e) => setEdicao({ ...edicao, telefone: e.target.value })} placeholder="Telefone" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+              <select value={edicao.idioma} onChange={(e) => setEdicao({ ...edicao, idioma: e.target.value })} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                <option value="PT">🇵🇹 Português</option>
+                <option value="ES">🇪🇸 Español</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+              <button type="button" onClick={() => setMostrarEditar(false)} style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>Cancelar</button>
+              <button type="submit" className="btn-hover" style={{ padding: '10px 12px', borderRadius: '8px', border: 'none', background: TEXT_PRIMARY, color: PRIMARY_COLOR, fontWeight: 'bold', cursor: 'pointer' }}>Guardar</button>
+            </div>
+          </form>
         </div>
       )}
     </div>

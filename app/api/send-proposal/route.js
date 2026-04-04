@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import path from 'path';
 
 export async function POST(request) {
   const empresa = await request.json();
@@ -8,7 +9,8 @@ export async function POST(request) {
   let corpoHTML = `
     <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
       <h2 style="color: #1F497D;">Dance World Cup - Dublin 2026 🇮🇪</h2>
-      <p>Exmo(a). Sr(a). Diretor(a) da <strong>${empresa.nome}</strong>,</p>
+      <p>Exmo(a). Sr(a). Responsável,</p>
+      <p>Entramos em contacto com a equipa de <strong>${empresa.nome}</strong>.</p>
       
       <p>O meu nome é Hugo e contacto-vos na qualidade de encarregado de educação da atleta <b>Matilde Mota</b>, bailarina da prestigiada Flash Li Dance School (Viana do Castelo).</p>
       
@@ -38,7 +40,8 @@ export async function POST(request) {
     corpoHTML = `
       <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
         <h2 style="color: #1F497D;">Dance World Cup - Dublín 2026 🇮🇪</h2>
-        <p>Estimado(a) Sr(a). Director(a) de <strong>${empresa.nome}</strong>,</p>
+        <p>Estimado(a) Sr(a). Responsable,</p>
+        <p>Nos ponemos en contacto con el equipo de <strong>${empresa.nome}</strong>.</p>
         <p>Mi nombre es Hugo y le contacto como representante de la atleta <b>Matilde Mota</b>, bailarina de la prestigiosa Flash Li Dance School (Viana do Castelo).</p>
         <p>Nuestra escuela representará a Portugal en la gran final mundial en Dublín. ¡Solo el mes pasado logramos <b>24 podios y 15 Medallas de Oro</b> en la final nacional!</p>
         <p>Dado que no contamos con apoyos estatales, buscamos socios empresariales que deseen asociar su marca al talento y éxito de nuestra juventud. Garantizamos la correcta emisión del <b>recibo oficial</b> para su contabilidad y gran visibilidad en nuestras redes.</p>
@@ -73,6 +76,12 @@ export async function POST(request) {
       to: empresa.email,
       subject: assunto,
       html: corpoHTML,
+      attachments: [
+        {
+          filename: 'Dossier_Matilde_Mota.pdf',
+          path: path.join(process.cwd(), 'public', 'Dossier_Matilde_Mota.pdf')
+        }
+      ]
     });
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (error) {
