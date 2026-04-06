@@ -5,7 +5,6 @@ export async function POST(request) {
 
   let assunto = `Bem-vindos à equipa! 🇮🇪 - Acordo de Patrocínio (${empresa.nome})`;
   
-  // TEXTO DO EMAIL DE BOAS-VINDAS E PEDIDO DE DADOS
   let corpoHTML = `
     <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
       <div style="background: #1a1a1a; padding: 25px; text-align: center; border-bottom: 4px solid #d4af37;">
@@ -20,9 +19,11 @@ export async function POST(request) {
         <p style="font-size: 15px; color: #475569;">Para podermos avançar com a divulgação imediata da vossa marca e preparar a emissão do respetivo recibo, pedimos que <b>respondam a este email com a seguinte informação:</b></p>
         
         <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
-          <ul style="margin: 0; padding-left: 20px; color: #1e293b; font-weight: bold;">
-            <li style="margin-bottom: 10px;">O vosso Logotipo Oficial (preferencialmente em alta qualidade / formato PNG sem fundo ou Vetor).</li>
-            <li>O vosso NIF e nome da entidade para faturação/recibo.</li>
+          <ul style="margin: 0; padding-left: 20px; color: #1e293b; font-weight: bold; line-height: 1.8;">
+            <li>Nome Fiscal (Entidade a faturar) e NIF.</li>
+            <li>Morada Completa (Sede Social) para o recibo.</li>
+            <li>O vosso Logotipo Oficial (preferencialmente PNG sem fundo).</li>
+            <li>Links das vossas Redes Sociais (Instagram/Facebook) para vos identificarmos nos nossos posts.</li>
           </ul>
         </div>
         
@@ -37,13 +38,9 @@ export async function POST(request) {
     </div>
   `;
 
-  // CONFIGURAÇÃO SMTP GMAIL
   const transporter = nodemailer.createTransport({
     service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
   });
 
   try {
@@ -55,7 +52,6 @@ export async function POST(request) {
     });
     return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
-    console.error("Erro no envio:", error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
