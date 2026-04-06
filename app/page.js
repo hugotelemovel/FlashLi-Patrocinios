@@ -1,9 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, Phone, Globe, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle, X, Crown, PenTool, Printer, LayoutGrid, SortDesc, Radar, ArrowRight, Settings } from 'lucide-react';
+import { BarChart3, Users, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, Phone, Globe, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle, X, Crown, PenTool, Printer, LayoutGrid, SortDesc } from 'lucide-react';
+import { Settings } from 'lucide-react';
 
 export default function App() {
+  // === ESTADOS BASE ===
   const [empresas, setEmpresas] = useState([]);
   const [historico, setHistorico] = useState([]); 
   const [searchTerm, setSearchTerm] = useState('');
@@ -16,6 +18,7 @@ export default function App() {
 
   const [objetivo, setObjetivo] = useState(3000);
 
+  // === ESTADOS DO FORMULÁRIO E EDIÇÃO ===
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -23,6 +26,7 @@ export default function App() {
   const [dataFollowup, setDataFollowup] = useState('');
   const [empresaEmEdicao, setEmpresaEmEdicao] = useState(null);
 
+  // === ESTADOS DO BROADCAST ===
   const [bAssunto, setBAssunto] = useState('');
   const [bMensagem, setBMensagem] = useState('');
   const [bFoto, setBFoto] = useState('');
@@ -31,12 +35,7 @@ export default function App() {
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [nomeArquivoTemp, setNomeArquivoTemp] = useState('');
 
-  const [searchNicho, setSearchNicho] = useState('');
-  const [searchLocal, setSearchLocal] = useState('Viana do Castelo');
-  const [raioRadar, setRaioRadar] = useState(15);
-  const [radarResultados, setRadarResultados] = useState([]);
-  const [loadingRadar, setLoadingRadar] = useState(false);
-
+  // === CONFIGURAÇÕES GLOBAIS (WHATSAPP) ===
   const [showSettings, setShowSettings] = useState(false);
   
   const defaultPropPT = `Olá! Sou o Hugo, pai da atleta Matilde Mota (Flash Li Dance School).\n\nEstamos à procura de parceiros para apoiar a nossa equipa rumo ao Campeonato do Mundo de Dança (DWCup 2026) em Dublin. 🇮🇪\n\nDeixo aqui o nosso dossier com a história da Matilde e as propostas de visibilidade para a *{nome}*:\n📄 https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf\n\nGostaria muito de saber a vossa opinião! Muito obrigado.`;
@@ -99,98 +98,7 @@ export default function App() {
     if (!error && data) setHistorico(data);
   }
 
-  // --- NOVO RADAR IA (MOTOR MELHORADO) ---
-  async function explorarRadar(e) {
-    e.preventDefault();
-    if (!searchNicho || !searchLocal) return showMessage('Preenche o que procuras e a cidade!', 'error');
-    
-    setLoadingRadar(true);
-    setRadarResultados([]);
-    showMessage(`A procurar por "${searchNicho}" num raio de ${raioRadar}km em ${searchLocal}...`, 'info');
-
-    try {
-      // 1. Procurar as coordenadas da cidade
-      const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchLocal)}&format=json&limit=1`);
-      const geoData = await geoRes.json();
-      
-      if (!geoData || geoData.length === 0) {
-        setLoadingRadar(false);
-        return showMessage(`Não encontrei a cidade "${searchLocal}" no mapa.`, 'error');
-      }
-
-      const { lat, lon } = geoData[0];
-      const raioMetros = raioRadar * 1000;
-
-      // 2. Query Avançada e 100% Legal para varrer Nomes e Categorias (Amenity/Shop)
-      const overpassQuery = `
-        [out:json][timeout:30];
-        (
-          nwr["name"~"${searchNicho}",i](around:${raioMetros},${lat},${lon});
-          nwr["amenity"~"${searchNicho}",i](around:${raioMetros},${lat},${lon});
-          nwr["shop"~"${searchNicho}",i](around:${raioMetros},${lat},${lon});
-        );
-        out center tags;
-      `;
-
-      const res = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        body: overpassQuery
-      });
-      
-      if (!res.ok) throw new Error('O servidor do mapa está sobrecarregado, tenta de novo.');
-      const data = await res.json();
-
-      if (data && data.elements && data.elements.length > 0) {
-        const empresasEncontradas = data.elements.map(el => ({
-          id_radar: el.id,
-          nome: el.tags.name || el.tags.brand || `${searchNicho} (${el.tags.amenity || el.tags.shop || 'Local'})`,
-          telefone: el.tags.phone || el.tags['contact:phone'] || '',
-          website: el.tags.website || el.tags['contact:website'] || '',
-          email: el.tags.email || el.tags['contact:email'] || ''
-        })).filter(emp => emp.nome); 
-
-        // Remover duplicados
-        const unicos = Array.from(new Set(empresasEncontradas.map(a => a.nome)))
-          .map(nome => empresasEncontradas.find(a => a.nome === nome));
-
-        if (unicos.length === 0) {
-           showMessage('Encontrei locais, mas sem nome comercial registado.', 'error');
-        } else {
-           setRadarResultados(unicos.slice(0, 40)); 
-           showMessage(`✅ O Radar encontrou ${unicos.length} empresas!`, 'success');
-        }
-      } else {
-        showMessage(`O Radar não encontrou nada. Tenta termos como "Farmácia", "Clínica" ou "Restaurante".`, 'error');
-      }
-
-    } catch (error) {
-      showMessage(`Erro técnico de rede: ${error.message}`, 'error');
-    }
-    setLoadingRadar(false);
-  }
-
-  async function moverDoRadarParaCRM(empRadar) {
-    showMessage(`A mover ${empRadar.nome} para o teu CRM...`, 'info');
-    const novaEmpresa = { 
-      nome: empRadar.nome, 
-      email: empRadar.email || null, 
-      telefone: empRadar.telefone || null, 
-      idioma: 'PT', 
-      status: 'Pendente', 
-      data_followup: null,
-      valor: 0, recibo_enviado: false, logo_recebido: false, redes_sociais: false, 
-      notas: empRadar.website ? `Website: ${empRadar.website}` : ''
-    };
-
-    const { data, error } = await supabase.from('patrocinadores').insert([novaEmpresa]).select();
-    if (error) { showMessage(`❌ ERRO: ${error.message}`, 'error'); } 
-    else if (data) {
-      setEmpresas([data[0], ...empresas]);
-      setRadarResultados(radarResultados.filter(r => r.id_radar !== empRadar.id_radar));
-      showMessage('✅ Empresa movida para os Pendentes do CRM!', 'success');
-    }
-  }
-
+  // --- CRM BASE ---
   async function addEmpresa(e) {
     e.preventDefault();
     if (!nome) return showMessage('O Nome da empresa é obrigatório!', 'error');
@@ -275,6 +183,7 @@ export default function App() {
     return `https://wa.me/${numero}?text=${encodeURIComponent(finalMsg)}`;
   }
 
+  // --- BROADCAST ---
   async function uploadFotoDireta(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -320,6 +229,7 @@ export default function App() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
 
+  // --- CÁLCULOS SEGUROS ---
   const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
   const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
   const tarefasPendentes = empresas.filter(e => e.status === 'Aceitou' && (!e.recibo_enviado || !e.logo_recebido || !e.redes_sociais));
@@ -474,10 +384,9 @@ return (
           <button onClick={() => setShowSettings(true)} className="btn-hover" style={{ background: '#f1f5f9', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer', color: '#475569' }} title="Configurar Textos do WhatsApp"><Settings size={20}/></button>
         </div>
         
-        {/* NAVEGAÇÃO COM 5 ABAS */}
+        {/* NAVEGAÇÃO COM 4 ABAS (SEM RADAR) */}
         <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px', marginTop: '10px' }}>
           <button onClick={() => setTab('crm')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'crm' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'crm' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><Users size={18}/> CRM</button>
-          <button onClick={() => setTab('radar')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'radar' ? '#8b5cf6' : '#f1f5f9', color: tab === 'radar' ? 'white' : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><Radar size={18}/> Radar IA</button>
           <button onClick={() => setTab('reports')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'reports' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'reports' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>
             <BarChart3 size={18}/> Relatório 
             {(urgentesFollowup.length > 0 || tarefasPendentes.length > 0) && <span style={{background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '11px'}}>{urgentesFollowup.length + tarefasPendentes.length}</span>}
@@ -488,58 +397,6 @@ return (
       </header>
 
       {msg && <div className="no-print" style={{ background: msgType === 'error' ? '#fee2e2' : '#f0fdf4', color: msgType === 'error' ? '#991b1b' : '#166534', padding: '15px', borderRadius: '10px', marginBottom: '20px', fontWeight: 'bold', border: `1px solid ${msgType === 'error' ? '#f87171' : '#4ade80'}` }}>{msg}</div>}
-
-      {/* === ABA 5: RADAR DE PROSPEÇÃO === */}
-      {tab === 'radar' && (
-        <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '25px', maxWidth: '900px', margin: '0 auto' }}>
-          
-          <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderTop: `6px solid #8b5cf6` }}>
-            <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '24px', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '10px' }}><Radar size={28} color="#8b5cf6"/> Radar de Prospeção (Grátis)</h2>
-            <p style={{ color: '#64748b', fontSize: '15px', lineHeight: '1.5' }}>
-              Procura por empresas no mapa da tua zona. Escreve termos como <b>"Farmácia"</b>, <b>"Restaurante"</b>, ou <b>"Clínica"</b>.
-            </p>
-
-            <form onSubmit={explorarRadar} style={{ display: 'flex', gap: '15px', marginTop: '25px', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 250px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>O que procuras?</label>
-                <input type="text" placeholder="Ex: Farmácia, Restaurante, Construção..." value={searchNicho} onChange={e => setSearchNicho(e.target.value)} style={{ width: '100%', padding: '15px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px' }} />
-              </div>
-              <div style={{ flex: '1 1 200px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' }}>Em que Cidade?</label>
-                <input type="text" placeholder="Ex: Viana do Castelo" value={searchLocal} onChange={e => setSearchLocal(e.target.value)} style={{ width: '100%', padding: '15px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px' }} />
-              </div>
-              <div style={{ flex: '1 1 150px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#8b5cf6', marginBottom: '5px' }}>Raio de Ação: {raioRadar} km</label>
-                <input type="range" min="2" max="100" value={raioRadar} onChange={e => setRaioRadar(e.target.value)} style={{ width: '100%', marginTop: '8px', accentColor: '#8b5cf6' }} />
-              </div>
-              <button type="submit" disabled={loadingRadar} className="btn-hover" style={{ flex: '1 1 100%', padding: '15px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
-                {loadingRadar ? 'A varrer o mapa...' : <><Search size={18}/> Iniciar Varrimento</>}
-              </button>
-            </form>
-          </div>
-
-          {radarResultados.length > 0 && (
-            <div>
-              <h3 style={{ color: TEXT_PRIMARY, marginBottom: '15px' }}>Resultados em Quarentena ({radarResultados.length})</h3>
-              <div className="responsive-grid">
-                {radarResultados.map(emp => (
-                  <div key={emp.id_radar} style={{ background: 'white', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div>
-                      <h4 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#1e293b' }}>{emp.nome}</h4>
-                      {emp.telefone && <div style={{ fontSize: '13px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}><Phone size={12}/> {emp.telefone}</div>}
-                      {emp.website && <div style={{ fontSize: '13px', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}><Globe size={12}/> <a href={emp.website.startsWith('http') ? emp.website : `https://${emp.website}`} target="_blank" style={{ color: 'inherit' }}>Ver Website</a></div>}
-                    </div>
-                    
-                    <button onClick={() => moverDoRadarParaCRM(emp)} className="btn-hover" style={{ width: '100%', padding: '10px', background: '#f1f5f9', color: '#3b82f6', border: '1px dashed #3b82f6', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '15px' }}>
-                      <ArrowRight size={16}/> Mover para o CRM
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* === ABA 1: PIPELINE CRM === */}
       {tab === 'crm' && (
@@ -561,7 +418,7 @@ return (
             <button type="submit" className="btn-hover" style={{ flex: '1 1 100%', padding: '14px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>+ Adicionar Parceiro</button>
           </form>
 
-          {/* BARRA DE PESQUISA E FILTROS COM ÍCONES RECUPERADOS */}
+          {/* BARRA DE PESQUISA E FILTROS COM ÍCONES */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center' }} className="flex-wrap-mobile">
             <div style={{ flex: '1 1 200px', position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
@@ -682,7 +539,7 @@ return (
         </div>
       )}
 
-      {/* === ABA 2: RELATÓRIOS PREMIUM (RESTAURADA) === */}
+      {/* === ABA 2: RELATÓRIOS PREMIUM === */}
       {tab === 'reports' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
           <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
@@ -776,7 +633,7 @@ return (
         </div>
       )}
 
-      {/* === ABA 3: CAMPANHAS DE EMAIL (RESTAURADA) === */}
+      {/* === ABA 3: CAMPANHAS DE EMAIL === */}
       {tab === 'broadcast' && (
         <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '800px', margin: '0 auto' }}>
           <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: `1px solid ${PRIMARY_COLOR}` }}>
@@ -831,7 +688,7 @@ return (
         </div>
       )}
 
-      {/* === ABA 4: MURAL DE HONRA (CORRIGIDA) === */}
+      {/* === ABA 4: MURAL DE HONRA === */}
       {tab === 'mural' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
           <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', textAlign: 'center', borderTop: `6px solid ${PRIMARY_COLOR}` }}>
