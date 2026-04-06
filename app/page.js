@@ -1,36 +1,34 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle, X, Crown, PenTool } from 'lucide-react';
+import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle, X, Crown, PenTool, Printer, LayoutGrid, SortDesc } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
   const [historico, setHistorico] = useState([]); 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('Todos'); 
+  const [sortBy, setSortBy] = useState('recentes'); // NOVO FILTRO DE ORDENAÇÃO
   const [tab, setTab] = useState('crm');
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
   const [msgType, setMsgType] = useState('info');
 
-  // Variável para o Objetivo Global
   const [objetivo, setObjetivo] = useState(3000);
 
-  // Estados do Formulário de Adicionar
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [idioma, setIdioma] = useState('PT');
   const [dataFollowup, setDataFollowup] = useState('');
 
-  // Estado para o Super Modal de Edição
   const [empresaEmEdicao, setEmpresaEmEdicao] = useState(null);
 
-  // Estados do Broadcast
   const [bAssunto, setBAssunto] = useState('');
   const [bMensagem, setBMensagem] = useState('');
   const [bFoto, setBFoto] = useState('');
   const [bVideo, setBVideo] = useState('');
+  const [bDestinatarios, setBDestinatarios] = useState('aceites'); // NOVO ALVO DO BROADCAST
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [nomeArquivoTemp, setNomeArquivoTemp] = useState('');
 
@@ -40,7 +38,6 @@ export default function App() {
   useEffect(() => {
     fetchEmpresas();
     fetchHistorico();
-    // Carregar objetivo guardado localmente (se existir)
     const savedGoal = localStorage.getItem('metaFlashLi');
     if(savedGoal) setObjetivo(Number(savedGoal));
   }, []);
@@ -92,39 +89,26 @@ export default function App() {
     }
   }
 
-  // Atualização rápida na lista (1 campo)
   async function updateCampo(id, campo, valor) {
     setEmpresas(empresas.map(emp => emp.id === id ? { ...emp, [campo]: valor } : emp));
     await supabase.from('patrocinadores').update({ [campo]: valor }).eq('id', id);
   }
 
-  // Funções do Modal de Edição Completa
-  function abrirModalEdicao(emp) {
-    setEmpresaEmEdicao({ ...emp });
-  }
-
-  function fecharModal() {
-    setEmpresaEmEdicao(null);
-  }
+  function abrirModalEdicao(emp) { setEmpresaEmEdicao({ ...emp }); }
+  function fecharModal() { setEmpresaEmEdicao(null); }
 
   async function guardarEdicaoTotal(e) {
     e.preventDefault();
     if (!empresaEmEdicao.nome) return showMessage('O nome não pode estar vazio!', 'error');
-
     showMessage('A guardar alterações totais...', 'info');
-    
     const { id, created_at, ...dadosParaAtualizar } = empresaEmEdicao;
-    
-    // Assegurar que campos vazios vão como null para a DB
     dadosParaAtualizar.email = dadosParaAtualizar.email || null;
     dadosParaAtualizar.telefone = dadosParaAtualizar.telefone || null;
     dadosParaAtualizar.data_followup = dadosParaAtualizar.data_followup || null;
 
     const { error } = await supabase.from('patrocinadores').update(dadosParaAtualizar).eq('id', id);
-
-    if (error) {
-      showMessage(`❌ Erro a atualizar: ${error.message}`, 'error');
-    } else {
+    if (error) showMessage(`❌ Erro a atualizar: ${error.message}`, 'error');
+    else {
       setEmpresas(empresas.map(emp => emp.id === id ? { ...emp, ...dadosParaAtualizar } : emp));
       fecharModal();
       showMessage('✅ Parceiro atualizado com sucesso!', 'success');
@@ -140,7 +124,6 @@ export default function App() {
     }
   }
 
-  // Motores de Comunicação
   async function enviarProposta(empresa) {
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A enviar proposta por email para ${empresa.nome}...`, 'info');
@@ -190,31 +173,34 @@ export default function App() {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
     const { data, error } = await supabase.storage.from('fotos').upload(fileName, file);
-    if (error) {
-      showMessage(`❌ Erro no upload: ${error.message}`, 'error');
-    } else {
+    if (error) showMessage(`❌ Erro no upload: ${error.message}`, 'error');
+    else {
       const { data: publicUrlData } = supabase.storage.from('fotos').getPublicUrl(fileName);
       setBFoto(publicUrlData.publicUrl);
       setNomeArquivoTemp(fileName); 
-      showMessage('📸 Foto pronta! (Será apagada da nuvem após o envio)', 'success');
+      showMessage('📸 Foto pronta! (Será apagada após o envio)', 'success');
     }
     setUploadingFoto(false);
   }
 
   async function enviarBroadcast() {
-    const aceites = empresas.filter(e => e.status === 'Aceitou');
-    if (aceites.length === 0) return showMessage('Sem parceiros ativos para receber novidades.', 'error');
-    showMessage(`A embutir foto e a enviar para ${aceites.length} parceiros...`, 'info');
+    let alvos = [];
+    if (bDestinatarios === 'aceites') alvos = empresas.filter(e => e.status === 'Aceitou');
+    if (bDestinatarios === 'pendentes') alvos = empresas.filter(e => e.status === 'Pendente' || e.status === 'Em Análise');
+    if (bDestinatarios === 'todos') alvos = empresas;
+
+    if (alvos.length === 0) return showMessage('Não há destinatários nesse grupo.', 'error');
+    showMessage(`A preparar o envio para ${alvos.length} contactos...`, 'info');
     
     try {
       const res = await fetch('/api/send-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: bFoto, videoUrl: bVideo, empresas: aceites })
+        body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: bFoto, videoUrl: bVideo, empresas: alvos })
       });
       if (res.ok) {
-        showMessage('✅ Novidades entregues com sucesso!', 'success');
-        const { data: novoHistorico } = await supabase.from('historico_novidades').insert([{ assunto: bAssunto, mensagem: bMensagem, foto_url: bFoto, video_url: bVideo, total_destinatarios: aceites.length }]).select();
+        showMessage('✅ Email enviado com sucesso!', 'success');
+        const { data: novoHistorico } = await supabase.from('historico_novidades').insert([{ assunto: bAssunto, mensagem: bMensagem, foto_url: bFoto, video_url: bVideo, total_destinatarios: alvos.length }]).select();
         if (novoHistorico) setHistorico([novoHistorico[0], ...historico]);
         if (nomeArquivoTemp) await supabase.storage.from('fotos').remove([nomeArquivoTemp]);
         setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo(''); setNomeArquivoTemp('');
@@ -236,6 +222,10 @@ export default function App() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
 
+  function gerarPDF() {
+    window.print();
+  }
+
   // CÁLCULOS DO DASHBOARD
   const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
   const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
@@ -247,19 +237,6 @@ export default function App() {
   const countPendentes = empresas.filter(e => e.status === 'Pendente').length;
   const countAnalise = empresas.filter(e => e.status === 'Em Análise').length;
   const countRecusados = empresas.filter(e => e.status === 'Recusou').length;
-  
-  const countDiamante = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) >= 300).length;
-  const countOuro = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) >= 150 && Number(e.valor) < 300).length;
-  const countPrata = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) >= 50 && Number(e.valor) < 150).length;
-  const countApoiante = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) > 0 && Number(e.valor) < 50).length;
-
-  // Encontrar o Top Sponsor
-  let topSponsor = { nome: '-', valor: 0 };
-  empresas.filter(e => e.status === 'Aceitou').forEach(emp => {
-    if(Number(emp.valor) > topSponsor.valor) {
-      topSponsor = { nome: emp.nome, valor: Number(emp.valor) };
-    }
-  });
 
   function getEscalao(valor) {
     const v = Number(valor);
@@ -270,6 +247,16 @@ export default function App() {
     return { nome: 'Diamante', cor: '#3b82f6', icon: '💎' }; 
   }
 
+  const parceirosDiamante = empresas.filter(e => e.status === 'Aceitou' && getEscalao(e.valor).nome === 'Diamante');
+  const parceirosOuro = empresas.filter(e => e.status === 'Aceitou' && getEscalao(e.valor).nome === 'Ouro');
+  const parceirosPrata = empresas.filter(e => e.status === 'Aceitou' && getEscalao(e.valor).nome === 'Prata');
+  const parceirosApoiante = empresas.filter(e => e.status === 'Aceitou' && getEscalao(e.valor).nome === 'Apoiante');
+
+  let topSponsor = { nome: '-', valor: 0 };
+  empresas.filter(e => e.status === 'Aceitou').forEach(emp => {
+    if(Number(emp.valor) > topSponsor.valor) topSponsor = { nome: emp.nome, valor: Number(emp.valor) };
+  });
+
   function getStatusColor(status) {
     if (status === 'Aceitou') return '#dcfce7'; 
     if (status === 'Pendente') return '#fef9c3'; 
@@ -277,8 +264,18 @@ export default function App() {
     return '#fee2e2'; 
   }
 
+  // MOTOR DE ORDENAÇÃO E FILTRAGEM
   let empresasFiltradas = empresas.filter(emp => emp.nome.toLowerCase().includes(searchTerm.toLowerCase()) || (emp.email && emp.email.toLowerCase().includes(searchTerm.toLowerCase())));
   if (filterStatus !== 'Todos') empresasFiltradas = empresasFiltradas.filter(emp => emp.status === filterStatus);
+
+  if (sortBy === 'valor') {
+    empresasFiltradas.sort((a, b) => Number(b.valor || 0) - Number(a.valor || 0));
+  } else if (sortBy === 'nome') {
+    empresasFiltradas.sort((a, b) => a.nome.localeCompare(b.nome));
+  } else {
+    // Recentes (Default)
+    empresasFiltradas.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }
 
   if (loading) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>A carregar Super App... ⏳</div>;
 
@@ -292,13 +289,13 @@ export default function App() {
         .flex-wrap-mobile { flex-wrap: wrap; }
         .task-checkbox { display: flex; alignItems: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 6px 0; font-weight: 500;}
         .task-checkbox input { cursor: pointer; transform: scale(1.2); }
-        .task-checkbox:hover { opacity: 0.8; }
         .dash-box { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; }
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 15px; backdrop-filter: blur(4px); }
         .modal-content { background: white; padding: 25px; border-radius: 16px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; font-size: 13px; font-weight: bold; color: #475569; margin-bottom: 5px; }
         .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-family: inherit; }
+        .btn-hover:hover { opacity: 0.9; transform: scale(0.98); transition: 0.2s; }
         
         @media (min-width: 768px) {
           .responsive-grid { grid-template-columns: repeat(3, 1fr); }
@@ -306,79 +303,53 @@ export default function App() {
           .mobile-card { display: none; }
           .flex-wrap-mobile { flex-wrap: nowrap; }
         }
-        input, select, textarea { box-sizing: border-box; }
-        .btn-hover:hover { opacity: 0.9; transform: scale(0.98); transition: 0.2s; }
+
+        /* ESTILOS DE IMPRESSÃO PDF */
+        @media print {
+          body { background: white; }
+          header, .no-print { display: none !important; }
+          .dash-box { border: 1px solid #ccc; box-shadow: none; break-inside: avoid; }
+        }
       `}} />
 
       {/* MODAL DE EDIÇÃO TOTAL */}
       {empresaEmEdicao && (
-        <div className="modal-overlay" onClick={fecharModal}>
+        <div className="modal-overlay no-print" onClick={fecharModal}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #f1f5f9', paddingBottom: '15px' }}>
               <h2 style={{ margin: 0, fontSize: '20px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Edit size={20}/> Editar Parceiro</h2>
               <button onClick={fecharModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
             </div>
-
             <form onSubmit={guardarEdicaoTotal}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div className="form-group" style={{ gridColumn: 'span 2' }}>
                   <label>Nome da Empresa (Obrigatório)</label>
                   <input type="text" value={empresaEmEdicao.nome} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, nome: e.target.value})} required />
                 </div>
-                
-                <div className="form-group">
-                  <label>Email</label>
-                  <input type="email" value={empresaEmEdicao.email || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, email: e.target.value})} />
-                </div>
-                
-                <div className="form-group">
-                  <label>Telefone</label>
-                  <input type="text" value={empresaEmEdicao.telefone || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, telefone: e.target.value})} />
-                </div>
-
+                <div className="form-group"><label>Email</label><input type="email" value={empresaEmEdicao.email || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, email: e.target.value})} /></div>
+                <div className="form-group"><label>Telefone</label><input type="text" value={empresaEmEdicao.telefone || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, telefone: e.target.value})} /></div>
                 <div className="form-group">
                   <label>Estado do Negócio</label>
                   <select value={empresaEmEdicao.status} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, status: e.target.value})} style={{ background: getStatusColor(empresaEmEdicao.status), fontWeight: 'bold' }}>
-                    <option value="Pendente">⏳ Pendente</option>
-                    <option value="Em Análise">🤔 Em Análise</option>
-                    <option value="Aceitou">✅ Aceitou</option>
-                    <option value="Recusou">❌ Recusou</option>
+                    <option value="Pendente">⏳ Pendente</option><option value="Em Análise">🤔 Em Análise</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
                   </select>
                 </div>
-
-                <div className="form-group">
-                  <label>Data de Lembrete (Follow-up)</label>
-                  <input type="date" value={empresaEmEdicao.data_followup || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, data_followup: e.target.value})} />
-                </div>
-
-                <div className="form-group">
-                  <label>Valor Angariado (€)</label>
-                  <input type="number" value={empresaEmEdicao.valor || 0} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, valor: e.target.value})} />
-                </div>
-
-                <div className="form-group">
-                  <label>Idioma do Dossier</label>
-                  <select value={empresaEmEdicao.idioma} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, idioma: e.target.value})}>
-                    <option value="PT">🇵🇹 Português</option>
-                    <option value="ES">🇪🇸 Espanhol</option>
-                  </select>
-                </div>
+                <div className="form-group"><label>Data Lembrete</label><input type="date" value={empresaEmEdicao.data_followup || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, data_followup: e.target.value})} /></div>
+                <div className="form-group"><label>Valor (€)</label><input type="number" value={empresaEmEdicao.valor || 0} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, valor: e.target.value})} /></div>
+                <div className="form-group"><label>Idioma</label><select value={empresaEmEdicao.idioma} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, idioma: e.target.value})}><option value="PT">🇵🇹 PT</option><option value="ES">🇪🇸 ES</option></select></div>
               </div>
-
               {empresaEmEdicao.status === 'Aceitou' && (
                 <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', marginTop: '10px', marginBottom: '15px', border: '1px solid #e2e8f0' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '10px' }}>Checklist de Entregáveis</label>
-                  <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.recibo_enviado} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, recibo_enviado: e.target.checked})} /> Emissão do Recibo</label>
-                  <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.logo_recebido} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, logo_recebido: e.target.checked})} /> Receção do Logotipo</label>
-                  <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.redes_sociais} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, redes_sociais: e.target.checked})} /> Post nas Redes Sociais</label>
+                  <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.recibo_enviado} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, recibo_enviado: e.target.checked})} /> Recibo Emitido</label>
+                  <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.logo_recebido} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, logo_recebido: e.target.checked})} /> Logotipo Recebido</label>
+                  <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.redes_sociais} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, redes_sociais: e.target.checked})} /> Post Publicado</label>
                 </div>
               )}
-
               <div className="form-group" style={{ marginTop: '10px' }}>
-                <label>Notas e Observações</label>
-                <textarea rows="3" value={empresaEmEdicao.notas || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, notas: e.target.value})}></textarea>
+                <label>Notas e Histórico</label>
+                <textarea rows="4" value={empresaEmEdicao.notas || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, notas: e.target.value})}></textarea>
               </div>
-
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button type="button" onClick={fecharModal} className="btn-hover" style={{ flex: 1, padding: '12px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
                 <button type="submit" className="btn-hover" style={{ flex: 2, padding: '12px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>💾 Guardar Alterações</button>
@@ -388,8 +359,8 @@ export default function App() {
         </div>
       )}
 
-      {/* CABEÇALHO */}
-      <header style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px', background: 'white', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderTop: `6px solid ${PRIMARY_COLOR}` }}>
+      {/* CABEÇALHO PRINCIPAL */}
+      <header className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px', background: 'white', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderTop: `6px solid ${PRIMARY_COLOR}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <img src="/logo.jpg" alt="Logotipo Oficial Flash Li" style={{ width: '65px', borderRadius: '12px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} />
           <div>
@@ -398,46 +369,56 @@ export default function App() {
           </div>
         </div>
         
+        {/* NAVEGAÇÃO COM 4 ABAS */}
         <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' }}>
-          <button onClick={() => setTab('crm')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'crm' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'crm' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><Users size={18}/> Pipeline CRM</button>
+          <button onClick={() => setTab('crm')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'crm' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'crm' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><Users size={18}/> CRM</button>
           <button onClick={() => setTab('reports')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'reports' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'reports' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>
-            <BarChart3 size={18}/> Dashboards 
+            <BarChart3 size={18}/> Relatório 
             {(urgentesFollowup.length > 0 || tarefasPendentes.length > 0) && <span style={{background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '11px'}}>{urgentesFollowup.length + tarefasPendentes.length}</span>}
           </button>
-          <button onClick={() => setTab('broadcast')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'broadcast' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'broadcast' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><ImageIcon size={18}/> Diário de Bordo</button>
+          <button onClick={() => setTab('broadcast')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'broadcast' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'broadcast' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><Send size={18}/> Campanhas</button>
+          <button onClick={() => setTab('mural')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'mural' ? '#3b82f6' : '#f1f5f9', color: tab === 'mural' ? 'white' : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><LayoutGrid size={18}/> Mural de Honra</button>
         </div>
       </header>
 
-      {msg && <div style={{ background: msgType === 'error' ? '#fee2e2' : '#f0fdf4', color: msgType === 'error' ? '#991b1b' : '#166534', padding: '15px', borderRadius: '10px', marginBottom: '20px', fontWeight: 'bold', border: `1px solid ${msgType === 'error' ? '#f87171' : '#4ade80'}` }}>{msg}</div>}
+      {msg && <div className="no-print" style={{ background: msgType === 'error' ? '#fee2e2' : '#f0fdf4', color: msgType === 'error' ? '#991b1b' : '#166534', padding: '15px', borderRadius: '10px', marginBottom: '20px', fontWeight: 'bold', border: `1px solid ${msgType === 'error' ? '#f87171' : '#4ade80'}` }}>{msg}</div>}
 
-      {/* === PIPELINE CRM === */}
+      {/* === ABA 1: PIPELINE CRM === */}
       {tab === 'crm' && (
-        <div style={{ background: 'transparent' }}>
+        <div className="no-print">
           <form onSubmit={addEmpresa} style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="flex-wrap-mobile">
             <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
               <h3 style={{ margin: 0, fontSize: '16px' }}>Nova Prospecção</h3>
             </div>
-            
             <input type="text" placeholder="Empresa (Obrigatório)" value={nome} onChange={e => setNome(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
             <input type="email" placeholder="Email (Opcional)" value={email} onChange={e => setEmail(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
             <input type="text" placeholder="Telefone (Opcional)" value={telefone} onChange={e => setTelefone(e.target.value)} style={{ flex: '1 1 120px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-            
             <div style={{ flex: '1 1 140px', position: 'relative' }}>
               <span style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 5px', fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>Ligar a:</span>
               <input type="date" value={dataFollowup} onChange={e => setDataFollowup(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', color: '#334155' }} />
             </div>
-
             <select value={idioma} onChange={e => setIdioma(e.target.value)} style={{ flex: '1 1 70px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
               <option value="PT">🇵🇹</option><option value="ES">🇪🇸</option>
             </select>
-            <button type="submit" className="btn-hover" style={{ flex: '1 1 100%', padding: '14px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>+ Adicionar ao Pipeline</button>
+            <button type="submit" className="btn-hover" style={{ flex: '1 1 100%', padding: '14px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>+ Adicionar Parceiro</button>
           </form>
 
+          {/* FILTROS, PESQUISA E ORDENAÇÃO */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center' }} className="flex-wrap-mobile">
-            <div style={{ flex: '1 1 250px', position: 'relative' }}>
+            <div style={{ flex: '1 1 200px', position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
               <input type="text" placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
             </div>
+            
+            <div style={{ flex: '1 1 150px', position: 'relative' }}>
+              <SortDesc size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: 'bold', color: '#475569' }}>
+                <option value="recentes">Mais Recentes</option>
+                <option value="valor">Maior Angariação (€)</option>
+                <option value="nome">Ordem Alfabética</option>
+              </select>
+            </div>
+
             <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', flex: '1 1 100%' }}>
               {['Todos', 'Pendente', 'Em Análise', 'Aceitou', 'Recusou'].map(status => (
                 <button key={status} onClick={() => setFilterStatus(status)} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: filterStatus === status ? PRIMARY_COLOR : '#e2e8f0', color: filterStatus === status ? 'white' : '#475569', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>
@@ -447,72 +428,45 @@ export default function App() {
             </div>
           </div>
 
-          {/* === LISTA MOBILE === */}
+          {/* LISTAS MOBILE / DESKTOP (A mesmíssima estrutura já otimizada) */}
           {empresasFiltradas.map(emp => {
             const escalao = getEscalao(emp.valor);
             const atrasado = (emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.data_followup && emp.data_followup <= hoje;
-
             return (
               <div key={`mobile-${emp.id}`} className="mobile-card" style={{ borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : atrasado ? '4px solid #ef4444' : '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                   <div>
-                    <div style={{ fontWeight: '900', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      {emp.nome} {emp.status === 'Aceitou' && escalao.icon}
-                    </div>
+                    <div style={{ fontWeight: '900', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '5px' }}>{emp.nome} {emp.status === 'Aceitou' && escalao.icon}</div>
                     <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email || 'S/ Email'} {emp.telefone && `• ${emp.telefone}`}</div>
                   </div>
                   <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', background: getStatusColor(emp.status) }}>
-                    <option value="Pendente">⏳ Pendente</option>
-                    <option value="Em Análise">🤔 Em Análise</option>
-                    <option value="Aceitou">✅ Aceitou</option>
-                    <option value="Recusou">❌ Recusou</option>
+                    <option value="Pendente">⏳ Pendente</option><option value="Em Análise">🤔 Em Análise</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
                   </select>
                 </div>
-
                 {(emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.data_followup && (
                   <div style={{ fontSize: '11px', color: atrasado ? '#ef4444' : '#64748b', fontWeight: atrasado ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '10px', background: atrasado ? '#fee2e2' : '#f1f5f9', padding: '4px 8px', borderRadius: '4px', width: 'fit-content' }}>
                     <Calendar size={12}/> Ligar a: {new Date(emp.data_followup).toLocaleDateString('pt-PT')} {atrasado && '(Atrasado!)'}
                   </div>
                 )}
-
                 {emp.status === 'Aceitou' && (
                   <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '2px dashed #cbd5e1', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
                       <input type="number" placeholder="Valor €" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '100px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '16px' }} />
                       <div style={{ fontSize: '14px', fontWeight: 'bold', color: escalao.cor }}>{escalao.nome}</div>
                     </div>
-                    
                     <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#1a1a1a', marginBottom: '8px', textTransform: 'uppercase' }}>Checklist Obrigatória:</div>
-                      <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Emitir Recibo Oficial</label>
-                      <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> Receber Logotipo</label>
-                      <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> Post de Agradecimento</label>
-
-                      <button onClick={() => enviarBoasVindas(emp)} className="btn-hover" style={{ width: '100%', padding: '10px', marginTop: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}><Mail size={16}/> Pedir Dados Fiscais</button>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#1a1a1a', marginBottom: '8px', textTransform: 'uppercase' }}>Checklist:</div>
+                      <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Recibo Emitido</label>
+                      <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> Logotipo Recebido</label>
+                      <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> Post Publicado</label>
+                      <button onClick={() => enviarBoasVindas(emp)} className="btn-hover" style={{ width: '100%', padding: '10px', marginTop: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}><Mail size={16}/> Pedir NIF & Logo</button>
                     </div>
                   </div>
                 )}
-
-                <input type="text" placeholder="Notas/Observações rápidas..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', marginBottom: '10px', background: '#f8fafc' }} />
-
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {emp.status !== 'Aceitou' && emp.email && (
-                    <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Send size={14}/> Email Proposta</button>
-                  )}
-                  
-                  {emp.status !== 'Aceitou' && emp.telefone && (
-                    <a onClick={() => updateCampo(emp.id, 'proposta_enviada_em', new Date().toISOString())} href={getWhatsAppPropostaLink(emp)} target="_blank" className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
-                      <MessageCircle size={14}/> WA Proposta
-                    </a>
-                  )}
-
-                  {(emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.telefone && emp.proposta_enviada_em && (
-                    <a href={getWhatsAppFollowUpLink(emp)} target="_blank" className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#128C7E', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
-                      <MessageCircle size={14}/> WA Follow-up
-                    </a>
-                  )}
-
-                  {/* NOVO BOTÃO DE EDIÇÃO GERAL MODO DEUS */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                  {emp.status !== 'Aceitou' && emp.email && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Send size={14}/> Email Proposta</button>}
+                  {emp.status !== 'Aceitou' && emp.telefone && <a onClick={() => updateCampo(emp.id, 'proposta_enviada_em', new Date().toISOString())} href={getWhatsAppPropostaLink(emp)} target="_blank" className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><MessageCircle size={14}/> WA Proposta</a>}
+                  {(emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.telefone && emp.proposta_enviada_em && <a href={getWhatsAppFollowUpLink(emp)} target="_blank" className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#128C7E', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><MessageCircle size={14}/> WA Follow-up</a>}
                   <button onClick={() => abrirModalEdicao(emp)} className="btn-hover" style={{ padding: '10px', background: '#1e293b', color: 'white', border: 'none', borderRadius: '8px', flexShrink: 0 }}><PenTool size={16}/></button>
                   <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', flexShrink: 0 }}><Trash2 size={16}/></button>
                 </div>
@@ -520,77 +474,44 @@ export default function App() {
             );
           })}
 
-          {/* === LISTA DESKTOP === */}
           <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="desktop-table">
             <table className="desktop-table">
               <thead style={{ background: '#f8fafc', color: '#64748b', textAlign: 'left', fontSize: '13px' }}>
-                <tr>
-                  <th style={{ padding: '15px' }}>Parceiro</th>
-                  <th style={{ padding: '15px' }}>Estado do Negócio</th>
-                  <th style={{ padding: '15px' }}>Gestão & Entregáveis</th>
-                  <th style={{ padding: '15px' }}>Notas & Follow-up</th>
-                  <th style={{ padding: '15px', textAlign: 'right' }}>Ações</th>
-                </tr>
+                <tr><th style={{ padding: '15px' }}>Parceiro</th><th style={{ padding: '15px' }}>Estado</th><th style={{ padding: '15px' }}>Gestão & Entregáveis</th><th style={{ padding: '15px' }}>Ações Rápidas</th></tr>
               </thead>
               <tbody>
                 {empresasFiltradas.map(emp => {
                   const escalao = getEscalao(emp.valor);
-                  const atrasado = (emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.data_followup && emp.data_followup <= hoje;
-
                   return (
                     <tr key={`desktop-${emp.id}`} style={{ borderTop: '1px solid #f1f5f9', background: emp.status === 'Aceitou' ? '#f0fdf4' : 'white' }}>
-                      <td style={{ padding: '15px', borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : '4px solid transparent' }}>
+                      <td style={{ padding: '15px', borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : '4px solid transparent', width: '25%' }}>
                         <div style={{ fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}>{emp.nome} {emp.status === 'Aceitou' && escalao.icon}</div>
-                        <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email || 'S/ Email'} <br/> {emp.telefone}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{emp.email || 'S/ Email'} <br/> {emp.telefone}</div>
+                        {emp.notas && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px', fontStyle: 'italic' }}>{emp.notas.substring(0, 50)}...</div>}
                       </td>
-                      <td style={{ padding: '15px' }}>
-                        <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', outline: 'none', background: getStatusColor(emp.status) }}>
-                          <option value="Pendente">⏳ Pendente</option>
-                          <option value="Em Análise">🤔 Em Análise</option>
-                          <option value="Aceitou">✅ Aceitou</option>
-                          <option value="Recusou">❌ Recusou</option>
+                      <td style={{ padding: '15px', width: '20%' }}>
+                        <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', outline: 'none', background: getStatusColor(emp.status), width: '100%' }}>
+                          <option value="Pendente">⏳ Pendente</option><option value="Em Análise">🤔 Em Análise</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
                         </select>
                         {emp.proposta_enviada_em && <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '5px' }}>✓ Proposta Enviada</div>}
                       </td>
-                      <td style={{ padding: '15px' }}>
+                      <td style={{ padding: '15px', width: '35%' }}>
                         {emp.status === 'Aceitou' ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
                               <input type="number" placeholder="€" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '80px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
                               <span style={{fontSize: '12px', fontWeight: 'bold', color: escalao.cor}}>{escalao.nome}</span>
                             </div>
-                            
-                            <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> 1. Recibo Emitido</label>
-                            <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> 2. Logo Recebido</label>
-                            <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> 3. Post nas Redes</label>
-
-                            <button onClick={() => enviarBoasVindas(emp)} className="btn-hover" style={{ padding: '8px', marginTop: '5px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', cursor: 'pointer', fontSize: '11px' }}><Mail size={14}/> Pedir NIF & Logo</button>
+                            <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Recibo Emitido</label>
+                            <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> Logo Recebido</label>
                           </div>
                         ) : <span style={{color: '#cbd5e1'}}>-</span>}
                       </td>
-                      <td style={{ padding: '15px' }}>
-                        {(emp.status === 'Pendente' || emp.status === 'Em Análise') && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>Ligar a:</span>
-                            <input type="date" value={emp.data_followup || ''} onChange={(e) => updateCampo(emp.id, 'data_followup', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '11px', background: atrasado ? '#fee2e2' : 'white', color: atrasado ? '#ef4444' : 'inherit' }} />
-                          </div>
-                        )}
-                        <textarea placeholder="Notas rápidas..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '60px', fontSize: '12px', background: '#f8fafc', resize: 'vertical' }}></textarea>
-                      </td>
-                      <td style={{ padding: '15px', textAlign: 'right' }}>
+                      <td style={{ padding: '15px', textAlign: 'right', width: '20%' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap', maxWidth: '160px', marginLeft: 'auto' }}>
-                          
                           {emp.status !== 'Aceitou' && emp.email && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email da Proposta"><Send size={16}/></button>}
-                          
-                          {emp.status !== 'Aceitou' && emp.telefone && (
-                            <a onClick={() => updateCampo(emp.id, 'proposta_enviada_em', new Date().toISOString())} href={getWhatsAppPropostaLink(emp)} target="_blank" className="btn-hover" style={{ padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Proposta pelo WhatsApp">
-                              <MessageCircle size={16}/>
-                            </a>
-                          )}
-
-                          {/* NOVO BOTÃO DE EDIÇÃO GERAL */}
-                          <button onClick={() => abrirModalEdicao(emp)} className="btn-hover" style={{ padding: '10px', background: '#1e293b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Editar Dados (Modo Completo)"><PenTool size={16}/></button>
-                          <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Eliminar Contacto"><Trash2 size={16}/></button>
+                          {emp.status !== 'Aceitou' && emp.telefone && <a onClick={() => updateCampo(emp.id, 'proposta_enviada_em', new Date().toISOString())} href={getWhatsAppPropostaLink(emp)} target="_blank" className="btn-hover" style={{ padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="WhatsApp"><MessageCircle size={16}/></a>}
+                          <button onClick={() => abrirModalEdicao(emp)} className="btn-hover" style={{ padding: '10px', background: '#1e293b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Editar Completamente"><PenTool size={16}/></button>
                         </div>
                       </td>
                     </tr>
@@ -602,33 +523,28 @@ export default function App() {
         </div>
       )}
 
-      {/* === ABA: DASHBOARD E RELATÓRIOS AVANÇADOS === */}
+      {/* === ABA 2: RELATÓRIO E DASHBOARD === */}
       {tab === 'reports' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+          <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: TEXT_PRIMARY }}><BarChart3 size={24} color={PRIMARY_COLOR}/> Resumo Financeiro & Operacional</h2>
-            <button onClick={exportToCSV} className="btn-hover" style={{ padding: '10px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Download size={16}/> Exportar Excel</button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={exportToCSV} className="btn-hover" style={{ padding: '10px 20px', background: 'white', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Download size={16}/> Excel (.csv)</button>
+              <button onClick={gerarPDF} className="btn-hover" style={{ padding: '10px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Printer size={16}/> Salvar / Imprimir Relatório PDF</button>
+            </div>
           </div>
-          
-          {/* LINHA 1: MÉTRICAS FINANCEIRAS */}
+
           <div className="responsive-grid">
             <div className="dash-box" style={{ borderLeft: `5px solid ${PRIMARY_COLOR}` }}>
               <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}><Target size={16}/> Fundo Angariado</div>
               <div style={{ fontSize: '38px', fontWeight: '900', color: TEXT_PRIMARY, margin: '5px 0' }}>{angariado}€</div>
-              
               <div style={{ fontSize: '13px', color: '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  Meta: 
-                  {/* CAMPO DO OBJETIVO EDITÁVEL! */}
-                  <input type="number" value={objetivo} onChange={(e) => handleMetaChange(e.target.value)} style={{ width: '70px', padding: '2px 5px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f8fafc', fontWeight: 'bold' }}/> €
-                </span>
+                <span className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>Meta: <input type="number" value={objetivo} onChange={(e) => handleMetaChange(e.target.value)} style={{ width: '70px', padding: '2px 5px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f8fafc', fontWeight: 'bold' }}/> €</span>
+                <span className="print-only" style={{ display: 'none' }}>Meta: {objetivo}€</span> {/* Mostrado só na impressão */}
                 <strong>{((angariado/objetivo)*100).toFixed(0)}%</strong>
               </div>
-
-              <div style={{ background: '#e2e8f0', height: '8px', borderRadius: '4px', marginTop: '10px', overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min((angariado/objetivo)*100, 100)}%`, background: PRIMARY_COLOR, height: '100%' }}></div>
-              </div>
+              <div style={{ background: '#e2e8f0', height: '8px', borderRadius: '4px', marginTop: '10px', overflow: 'hidden' }}><div style={{ width: `${Math.min((angariado/objetivo)*100, 100)}%`, background: PRIMARY_COLOR, height: '100%' }}></div></div>
             </div>
 
             <div className="dash-box" style={{ borderLeft: '5px solid #3b82f6' }}>
@@ -637,191 +553,136 @@ export default function App() {
               <div style={{ fontSize: '13px', color: '#94a3b8' }}>Valor médio recebido por patrocinador</div>
             </div>
 
-            {/* CAIXA DO TOP SPONSOR */}
             <div className="dash-box" style={{ borderLeft: '5px solid #10b981', background: 'linear-gradient(to right, #ffffff, #f0fdf4)' }}>
               <div style={{ color: '#166534', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}><Crown size={16}/> Top Sponsor (Maior Apoio)</div>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#15803d', margin: '5px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {topSponsor.nome !== '-' ? topSponsor.nome : 'Ainda sem apoios'}
-              </div>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#15803d', margin: '5px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{topSponsor.nome !== '-' ? topSponsor.nome : 'Ainda sem apoios'}</div>
               <div style={{ fontSize: '15px', color: '#166534', fontWeight: 'bold' }}>{topSponsor.valor > 0 ? `${topSponsor.valor}€ angariados` : '-'}</div>
             </div>
           </div>
 
-          {/* LINHA 2: FUNIL DE VENDAS E ESCALÕES */}
           <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-            
             <div className="dash-box">
-              <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Filter size={18} color="#64748b"/> Funil de Negociação (Taxa de Fecho: {empresas.length > 0 ? ((totalAceites / empresas.length) * 100).toFixed(0) : 0}%)</h3>
-              
+              <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Filter size={18} color="#64748b"/> Funil de Negociação (Fecho: {empresas.length > 0 ? ((totalAceites / empresas.length) * 100).toFixed(0) : 0}%)</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#64748b'}}>⏳ Pendentes / Frios</span> <span>{countPendentes}</span></div>
-                  <div style={{ background: '#e2e8f0', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(countPendentes/empresas.length)*100 || 0}%`, background: '#cbd5e1', height: '100%' }}></div></div>
-                </div>
-                
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#f59e0b'}}>🤔 Em Análise / Quentes</span> <span>{countAnalise}</span></div>
-                  <div style={{ background: '#fef3c7', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(countAnalise/empresas.length)*100 || 0}%`, background: '#f59e0b', height: '100%' }}></div></div>
-                </div>
-
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#10b981'}}>✅ Fechados (Aceites)</span> <span>{totalAceites}</span></div>
-                  <div style={{ background: '#dcfce7', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(totalAceites/empresas.length)*100 || 0}%`, background: '#10b981', height: '100%' }}></div></div>
-                </div>
-
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#ef4444'}}>❌ Recusados</span> <span>{countRecusados}</span></div>
-                  <div style={{ background: '#fee2e2', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(countRecusados/empresas.length)*100 || 0}%`, background: '#ef4444', height: '100%' }}></div></div>
-                </div>
+                <div><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#64748b'}}>⏳ Pendentes / Frios</span> <span>{countPendentes}</span></div><div style={{ background: '#e2e8f0', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(countPendentes/empresas.length)*100 || 0}%`, background: '#cbd5e1', height: '100%' }}></div></div></div>
+                <div><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#f59e0b'}}>🤔 Em Análise / Quentes</span> <span>{countAnalise}</span></div><div style={{ background: '#fef3c7', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(countAnalise/empresas.length)*100 || 0}%`, background: '#f59e0b', height: '100%' }}></div></div></div>
+                <div><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#10b981'}}>✅ Fechados (Aceites)</span> <span>{totalAceites}</span></div><div style={{ background: '#dcfce7', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(totalAceites/empresas.length)*100 || 0}%`, background: '#10b981', height: '100%' }}></div></div></div>
+                <div><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#ef4444'}}>❌ Recusados</span> <span>{countRecusados}</span></div><div style={{ background: '#fee2e2', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(countRecusados/empresas.length)*100 || 0}%`, background: '#ef4444', height: '100%' }}></div></div></div>
               </div>
             </div>
 
             <div className="dash-box">
               <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Award size={18} color={PRIMARY_COLOR}/> Quadro de Medalhas (Fechados)</h3>
-              
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '24px', marginBottom: '5px' }}>💎</div>
-                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#3b82f6' }}>{countDiamante}</div>
-                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>DIAMANTE</div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>+300€</div>
-                </div>
-
-                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '24px', marginBottom: '5px' }}>🥇</div>
-                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#eab308' }}>{countOuro}</div>
-                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>OURO</div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>150€ a 299€</div>
-                </div>
-
-                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '24px', marginBottom: '5px' }}>🥈</div>
-                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#94a3b8' }}>{countPrata}</div>
-                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>PRATA</div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>50€ a 149€</div>
-                </div>
-
-                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '24px', marginBottom: '5px' }}>🥉</div>
-                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#b45309' }}>{countApoiante}</div>
-                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>APOIANTE</div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>Até 49€</div>
-                </div>
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}><div style={{ fontSize: '24px', marginBottom: '5px' }}>💎</div><div style={{ fontSize: '20px', fontWeight: '900', color: '#3b82f6' }}>{countDiamante}</div><div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>DIAMANTE</div></div>
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}><div style={{ fontSize: '24px', marginBottom: '5px' }}>🥇</div><div style={{ fontSize: '20px', fontWeight: '900', color: '#eab308' }}>{countOuro}</div><div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>OURO</div></div>
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}><div style={{ fontSize: '24px', marginBottom: '5px' }}>🥈</div><div style={{ fontSize: '20px', fontWeight: '900', color: '#94a3b8' }}>{countPrata}</div><div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>PRATA</div></div>
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}><div style={{ fontSize: '24px', marginBottom: '5px' }}>🥉</div><div style={{ fontSize: '20px', fontWeight: '900', color: '#b45309' }}>{countApoiante}</div><div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>APOIANTE</div></div>
               </div>
             </div>
-
           </div>
 
-          {/* LINHA 3: ALERTAS DE AÇÃO (Follow-ups e Tarefas) */}
-          <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-            
-            <div className="dash-box" style={{ border: urgentesFollowup.length > 0 ? '2px solid #ef4444' : '1px solid #e2e8f0' }}>
-              <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: urgentesFollowup.length > 0 ? '#ef4444' : TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Phone size={18}/> Ligar Hoje / Atrasados ({urgentesFollowup.length})
-              </h3>
-              
-              {urgentesFollowup.length === 0 ? (
-                <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Nenhum contacto agendado para hoje. 🎉</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {urgentesFollowup.map(emp => (
-                    <div key={emp.id} style={{ padding: '10px', background: '#fee2e2', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontWeight: 'bold', color: '#991b1b', fontSize: '14px' }}>{emp.nome}</div>
-                        <div style={{ fontSize: '11px', color: '#ef4444' }}>Agendado para: {new Date(emp.data_followup).toLocaleDateString('pt-PT')}</div>
+          {/* Ligar Hoje - SÓ APARECE NO PDF SE HOUVEREM ATRASOS */}
+          {(urgentesFollowup.length > 0 || tarefasPendentes.length > 0) && (
+            <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+              {urgentesFollowup.length > 0 && (
+                <div className="dash-box" style={{ border: '2px solid #ef4444' }}>
+                  <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}><Phone size={18}/> Ligar Hoje / Atrasados ({urgentesFollowup.length})</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {urgentesFollowup.map(emp => (
+                      <div key={emp.id} style={{ padding: '10px', background: '#fee2e2', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div><div style={{ fontWeight: 'bold', color: '#991b1b', fontSize: '14px' }}>{emp.nome}</div><div style={{ fontSize: '11px', color: '#ef4444' }}>Para: {new Date(emp.data_followup).toLocaleDateString('pt-PT')}</div></div>
+                        <a href={getWhatsAppFollowUpLink(emp)} target="_blank" className="no-print" style={{ padding: '6px 10px', background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}><MessageCircle size={14}/> Falar</a>
                       </div>
-                      <a href={getWhatsAppFollowUpLink(emp)} target="_blank" style={{ padding: '6px 10px', background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <MessageCircle size={14}/> Falar
-                      </a>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {tarefasPendentes.length > 0 && (
+                <div className="dash-box" style={{ border: '2px solid #f59e0b' }}>
+                  <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}><AlertCircle size={18}/> Tarefas Pendentes ({tarefasPendentes.length})</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {tarefasPendentes.map(emp => (
+                      <div key={emp.id} style={{ padding: '10px', background: '#fef3c7', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontWeight: 'bold', color: '#b45309', fontSize: '14px' }}>{emp.nome}</div>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          {!emp.recibo_enviado && <span style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #fcd34d' }}>Recibo</span>}
+                          {!emp.logo_recebido && <span style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #fcd34d' }}>Logo</span>}
+                          {!emp.redes_sociais && <span style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #fcd34d' }}>Post</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
-
-            <div className="dash-box" style={{ border: tarefasPendentes.length > 0 ? '2px solid #f59e0b' : '1px solid #e2e8f0' }}>
-              <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: tarefasPendentes.length > 0 ? '#f59e0b' : TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <AlertCircle size={18}/> Tarefas e Entregáveis Pendentes ({tarefasPendentes.length})
-              </h3>
-              
-              {tarefasPendentes.length === 0 ? (
-                <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Todos os parceiros têm as tarefas em dia. ✅</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {tarefasPendentes.map(emp => (
-                    <div key={emp.id} style={{ padding: '10px', background: '#fef3c7', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontWeight: 'bold', color: '#b45309', fontSize: '14px' }}>{emp.nome}</div>
-                      <div style={{ display: 'flex', gap: '5px' }}>
-                        {!emp.recibo_enviado && <span style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #fcd34d' }}>S/ Recibo</span>}
-                        {!emp.logo_recebido && <span style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #fcd34d' }}>S/ Logo</span>}
-                        {!emp.redes_sociais && <span style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #fcd34d' }}>S/ Post</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-          </div>
+          )}
 
         </div>
       )}
 
-      {/* === ABA: DIÁRIO DE BORDO E HISTÓRICO === */}
+      {/* === ABA 3: CAMPANHAS / BROADCAST === */}
       {tab === 'broadcast' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '800px', margin: '0 auto' }}>
-          
+        <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '800px', margin: '0 auto' }}>
           <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: `1px solid ${PRIMARY_COLOR}` }}>
-            <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '24px', fontWeight: '900' }}>Diário de Bordo 🇮🇪</h2>
-            <p style={{ color: '#64748b', fontSize: '15px' }}>Comunica novidades e resultados diretamente para as <b>{totalAceites} empresas</b> oficiais.</p>
+            <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '24px', fontWeight: '900' }}>Campanhas de Email 🚀</h2>
+            <p style={{ color: '#64748b', fontSize: '15px' }}>Comunica novidades, apelos ou relatórios em massa para um grupo específico.</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '30px' }}>
+              
+              <div style={{ background: '#f0fdf4', padding: '15px', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#166534', fontSize: '14px' }}>Público-Alvo da Campanha</label>
+                <select value={bDestinatarios} onChange={e => setBDestinatarios(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #86efac', background: 'white', fontWeight: 'bold', color: '#15803d' }}>
+                  <option value="aceites">🏆 Apenas Parceiros Oficiais (Aceites)</option>
+                  <option value="pendentes">⏳ A aguardar resposta (Pendentes + Análise)</option>
+                  <option value="todos">🌍 Todos os contactos da base de dados</option>
+                </select>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155' }}>Assunto do Email</label>
-                <input type="text" value={bAssunto} onChange={e=>setBAssunto(e.target.value)} placeholder="Ex: Medalha de Ouro em Acro Dance! 🥇🏆" style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '16px' }} />
+                <input type="text" value={bAssunto} onChange={e=>setBAssunto(e.target.value)} placeholder="Ex: Medalha de Ouro no Campeonato Nacional! 🥇" style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '16px' }} />
               </div>
               
               <div>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155' }}>Mensagem aos Patrocinadores</label>
-                <textarea value={bMensagem} onChange={e=>setBMensagem(e.target.value)} rows="6" placeholder="Escreva a atualização aqui..." style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '15px', resize: 'vertical' }}></textarea>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155' }}>Mensagem (HTML é suportado)</label>
+                <textarea value={bMensagem} onChange={e=>setBMensagem(e.target.value)} rows="6" placeholder="Escreva o email aqui..." style={{ width: '100%', padding: '15px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '15px', resize: 'vertical' }}></textarea>
               </div>
 
               <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '10px', color: '#334155', fontSize: '14px' }}>Adicionar Imagem / Álbum 📸</label>
-                
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <label className="btn-hover" style={{ background: TEXT_PRIMARY, color: 'white', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px' }}>
-                      <UploadCloud size={16}/> Enviar Foto Solta do Telemóvel
+                      <UploadCloud size={16}/> Enviar Foto
                       <input type="file" accept="image/*" onChange={uploadFotoDireta} style={{ display: 'none' }} disabled={uploadingFoto} />
                     </label>
-                    <span style={{ fontSize: '13px', color: '#64748b' }}>{uploadingFoto ? 'A carregar para a nuvem...' : '(Guarda e anexa ao email)'}</span>
+                    <span style={{ fontSize: '13px', color: '#64748b' }}>{uploadingFoto ? 'A carregar...' : '(Guarda e anexa ao email)'}</span>
                   </div>
-                  
                   <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>OU</div>
-                  
-                  <input type="text" value={bFoto} onChange={e=>setBFoto(e.target.value)} placeholder="Cola aqui um link partilhado (Google Fotos / iCloud)" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                  <input type="text" value={bFoto} onChange={e=>setBFoto(e.target.value)} placeholder="Link partilhado (Google Fotos / Drive)" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>Adicionar Vídeo ▶️</label>
-                <input type="text" value={bVideo} onChange={e=>setBVideo(e.target.value)} placeholder="Link direto do YouTube / Instagram" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>Adicionar Link de Vídeo ▶️</label>
+                <input type="text" value={bVideo} onChange={e=>setBVideo(e.target.value)} placeholder="Link do YouTube / Instagram" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
               </div>
 
               <button onClick={enviarBroadcast} className="btn-hover" style={{ padding: '18px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', marginTop: '10px' }}>
-                🚀 Disparar para {totalAceites} Parceiros Oficiais
+                <Send size={18} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }}/> 
+                Enviar Campanha Agora
               </button>
             </div>
           </div>
 
           <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
             <h3 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #f1f5f9', paddingBottom: '15px' }}>
-              <Clock size={22} color={PRIMARY_COLOR}/> Histórico de Atualizações Enviadas
+              <Clock size={22} color={PRIMARY_COLOR}/> Histórico de Campanhas Enviadas
             </h3>
-            
             {historico.length === 0 ? (
-              <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px 0', fontSize: '15px' }}>Ainda não foram enviadas atualizações.</p>
+              <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px 0', fontSize: '15px' }}>Ainda não foram enviadas campanhas.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
                 {historico.map((item) => (
@@ -832,25 +693,92 @@ export default function App() {
                         <Calendar size={14}/> {new Date(item.created_at).toLocaleDateString('pt-PT')}
                       </span>
                     </div>
-                    
-                    <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 15px 0', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
-                      {item.mensagem && item.mensagem.length > 150 ? item.mensagem.substring(0, 150) + '...' : item.mensagem}
-                    </p>
-                    
+                    <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 15px 0', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>{item.mensagem && item.mensagem.length > 150 ? item.mensagem.substring(0, 150) + '...' : item.mensagem}</p>
                     <div style={{ display: 'flex', gap: '15px', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
-                      <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}><Users size={14}/> Enviado para {item.total_destinatarios} parceiros</span>
-                      {(item.foto_url || item.video_url) && (
-                        <span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}><FileText size={14}/> Incluiu Multimédia</span>
-                      )}
+                      <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}><Users size={14}/> {item.total_destinatarios} destinatários</span>
+                      {(item.foto_url || item.video_url) && <span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}><FileText size={14}/> C/ Multimédia</span>}
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-          
         </div>
       )}
+
+      {/* === ABA 4 (NOVA): MURAL DE HONRA === */}
+      {tab === 'mural' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+          <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', textAlign: 'center', borderTop: `6px solid ${PRIMARY_COLOR}` }}>
+            <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '28px', fontWeight: '900' }}>🏆 Mural de Honra</h2>
+            <p style={{ color: '#64748b', fontSize: '15px', maxWidth: '600px', margin: '0 auto' }}>Um agradecimento especial aos visionários que acreditam e apoiam o talento da nossa juventude rumo a Dublin 2026. (Ideal para Screenshot para as Redes Sociais)</p>
+          </div>
+
+          {/* DIAMANTE */}
+          {parceirosDiamante.length > 0 && (
+            <div>
+              <h3 style={{ color: '#3b82f6', textAlign: 'center', margin: '0 0 15px 0', fontSize: '22px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>💎 Parceiros Diamante</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center' }}>
+                {parceirosDiamante.map(emp => (
+                  <div key={emp.id} style={{ background: 'linear-gradient(to bottom, #ffffff, #eff6ff)', border: '2px solid #bfdbfe', borderRadius: '12px', padding: '20px', width: '250px', textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                    <div style={{ fontWeight: '900', fontSize: '18px', color: '#1e3a8a' }}>{emp.nome}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* OURO */}
+          {parceirosOuro.length > 0 && (
+            <div>
+              <h3 style={{ color: '#eab308', textAlign: 'center', margin: '20px 0 15px 0', fontSize: '22px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>🥇 Parceiros Ouro</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center' }}>
+                {parceirosOuro.map(emp => (
+                  <div key={emp.id} style={{ background: 'linear-gradient(to bottom, #ffffff, #fefce8)', border: '2px solid #fef08a', borderRadius: '12px', padding: '15px', width: '220px', textAlign: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#854d0e' }}>{emp.nome}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* PRATA E APOIANTES JUNTOS SE HOUVER MUITOS */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', justifyContent: 'center', marginTop: '20px' }}>
+            {parceirosPrata.length > 0 && (
+              <div style={{ flex: '1 1 300px', minWidth: '300px' }}>
+                <h3 style={{ color: '#94a3b8', textAlign: 'center', margin: '0 0 15px 0', fontSize: '18px' }}>🥈 Parceiros Prata</h3>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+                  {parceirosPrata.map(emp => (
+                    <div key={emp.id} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 15px', textAlign: 'center' }}>
+                      <div style={{ fontWeight: '600', fontSize: '14px', color: '#475569' }}>{emp.nome}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {parceirosApoiante.length > 0 && (
+              <div style={{ flex: '1 1 300px', minWidth: '300px' }}>
+                <h3 style={{ color: '#b45309', textAlign: 'center', margin: '0 0 15px 0', fontSize: '18px' }}>🥉 Apoiantes Oficiais</h3>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+                  {parceirosApoiante.map(emp => (
+                    <div key={emp.id} style={{ background: 'white', border: '1px solid #ffedd5', borderRadius: '8px', padding: '10px 15px', textAlign: 'center' }}>
+                      <div style={{ fontWeight: '600', fontSize: '14px', color: '#9a3412' }}>{emp.nome}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {totalAceites === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', fontStyle: 'italic' }}>
+              O Mural de Honra ganhará vida assim que registares a primeira empresa como "Aceitou".
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }
