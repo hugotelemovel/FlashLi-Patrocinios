@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, MessageCircle, Mail } from 'lucide-react';
+import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, MessageCircle, Mail, Edit } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
@@ -85,6 +85,35 @@ export default function App() {
     await supabase.from('patrocinadores').update({ [campo]: valor }).eq('id', id);
   }
 
+  // --- NOVA FUNÇÃO: EDITAR DADOS PRINCIPAIS ---
+  async function editarEmpresa(emp) {
+    const novoNome = window.prompt("✏️ Editar Nome da Empresa:", emp.nome);
+    if (novoNome === null) return; // Se o utilizador clicar em Cancelar
+
+    const novoEmail = window.prompt("📧 Editar Email:", emp.email || '');
+    if (novoEmail === null) return;
+
+    const novoTelefone = window.prompt("📱 Editar Telefone:", emp.telefone || '');
+    if (novoTelefone === null) return;
+
+    if (!novoNome.trim()) return showMessage('❌ O nome não pode ficar vazio!', 'error');
+
+    showMessage('A atualizar dados...', 'info');
+
+    // Atualiza localmente no ecrã
+    setEmpresas(empresas.map(e => e.id === emp.id ? { ...e, nome: novoNome, email: novoEmail, telefone: novoTelefone } : e));
+    
+    // Atualiza na base de dados
+    const { error } = await supabase.from('patrocinadores').update({ 
+      nome: novoNome, 
+      email: novoEmail || null, 
+      telefone: novoTelefone || null 
+    }).eq('id', emp.id);
+
+    if (error) showMessage(`❌ Erro a atualizar: ${error.message}`, 'error');
+    else showMessage('✅ Contacto atualizado com sucesso!', 'success');
+  }
+
   async function eliminarEmpresa(id, nomeEmpresa) {
     if (!window.confirm(`Eliminar permanentemente "${nomeEmpresa}"?`)) return;
     const { error } = await supabase.from('patrocinadores').delete().eq('id', id);
@@ -125,21 +154,17 @@ export default function App() {
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
-  // WHATSAPP 1: ENVIAR PROPOSTA INICIAL
   function getWhatsAppPropostaLink(empresa) {
     let numero = empresa.telefone ? empresa.telefone.replace(/\D/g, '') : '';
     if (numero.length === 9 && numero.startsWith('9')) numero = '351' + numero;
-    
     const linkDossier = "https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf";
     const msg = `Olá! Sou o Hugo, pai da atleta Matilde Mota (Flash Li Dance School).\n\nEstamos à procura de parceiros para apoiar a nossa equipa rumo ao Campeonato do Mundo de Dança (DWCup 2026) em Dublin. 🇮🇪\n\nDeixo aqui o nosso dossier com a história da Matilde e as propostas de visibilidade para a *${empresa.nome}*:\n📄 ${linkDossier}\n\nGostaria muito de saber a vossa opinião! Muito obrigado.`;
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   }
 
-  // WHATSAPP 2: FAZER FOLLOW-UP (LEMBRETE)
   function getWhatsAppFollowUpLink(empresa) {
     let numero = empresa.telefone ? empresa.telefone.replace(/\D/g, '') : '';
     if (numero.length === 9 && numero.startsWith('9')) numero = '351' + numero;
-    
     const msg = `Olá! Sou o Hugo, da Flash Li Dance School.\n\nEntrámos recentemente em contacto com a *${empresa.nome}* para uma parceria rumo a Dublin 🇮🇪.\n\nGostava apenas de saber se tiveram oportunidade de analisar o nosso dossier ou se precisam de alguma informação adicional da minha parte.\n\nMuito obrigado pelo vosso tempo!`;
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   }
@@ -378,7 +403,9 @@ export default function App() {
                     </a>
                   )}
 
-                  <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', flexShrink: 0 }}><Trash2 size={16}/></button>
+                  {/* NOVOS BOTÕES EDITAR / ELIMINAR NO MOBILE */}
+                  <button onClick={() => editarEmpresa(emp)} className="btn-hover" style={{ padding: '10px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', flexShrink: 0 }}><Edit size={16}/></button>
+                  <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', flexShrink: 0 }}><Trash2 size={16}/></button>
                 </div>
               </div>
             );
@@ -448,7 +475,8 @@ export default function App() {
                         <textarea placeholder="Notas..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '60px', fontSize: '12px', background: '#f8fafc', resize: 'vertical' }}></textarea>
                       </td>
                       <td style={{ padding: '15px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap', maxWidth: '140px', marginLeft: 'auto' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap', maxWidth: '160px', marginLeft: 'auto' }}>
+                          
                           {emp.status !== 'Aceitou' && emp.email && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email da Proposta"><Send size={16}/></button>}
                           
                           {emp.status === 'Pendente' && emp.telefone && (
@@ -457,7 +485,9 @@ export default function App() {
                             </a>
                           )}
 
-                          <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Trash2 size={16}/></button>
+                          {/* BOTAO EDITAR E LIXO */}
+                          <button onClick={() => editarEmpresa(emp)} className="btn-hover" style={{ padding: '10px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Editar Dados"><Edit size={16}/></button>
+                          <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Eliminar Contacto"><Trash2 size={16}/></button>
                         </div>
                       </td>
                     </tr>
