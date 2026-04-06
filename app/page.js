@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle } from 'lucide-react';
+import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle, X, Crown, PenTool } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
@@ -13,12 +13,20 @@ export default function App() {
   const [msg, setMsg] = useState('');
   const [msgType, setMsgType] = useState('info');
 
+  // Variável para o Objetivo Global
+  const [objetivo, setObjetivo] = useState(3000);
+
+  // Estados do Formulário de Adicionar
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [idioma, setIdioma] = useState('PT');
   const [dataFollowup, setDataFollowup] = useState('');
 
+  // Estado para o Super Modal de Edição
+  const [empresaEmEdicao, setEmpresaEmEdicao] = useState(null);
+
+  // Estados do Broadcast
   const [bAssunto, setBAssunto] = useState('');
   const [bMensagem, setBMensagem] = useState('');
   const [bFoto, setBFoto] = useState('');
@@ -26,14 +34,22 @@ export default function App() {
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [nomeArquivoTemp, setNomeArquivoTemp] = useState('');
 
-  const OBJETIVO = 3000;
   const PRIMARY_COLOR = '#d4af37'; 
   const TEXT_PRIMARY = '#1a1a1a'; 
 
   useEffect(() => {
     fetchEmpresas();
     fetchHistorico();
+    // Carregar objetivo guardado localmente (se existir)
+    const savedGoal = localStorage.getItem('metaFlashLi');
+    if(savedGoal) setObjetivo(Number(savedGoal));
   }, []);
+
+  function handleMetaChange(val) {
+    const num = Number(val);
+    setObjetivo(num);
+    localStorage.setItem('metaFlashLi', num);
+  }
 
   function showMessage(text, type = 'info') {
     setMsg(text);
@@ -61,56 +77,62 @@ export default function App() {
     showMessage('A adicionar parceiro...', 'info');
     
     const novaEmpresa = { 
-      nome, 
-      email: email || null, 
-      telefone: telefone || null, 
-      idioma, 
-      status: 'Pendente', 
-      data_followup: dataFollowup || null 
+      nome, email: email || null, telefone: telefone || null, idioma, 
+      status: 'Pendente', data_followup: dataFollowup || null,
+      valor: 0, recibo_enviado: false, logo_recebido: false, redes_sociais: false, notas: ''
     };
 
     const { data, error } = await supabase.from('patrocinadores').insert([novaEmpresa]).select();
     
-    if (error) {
-      showMessage(`❌ ERRO: ${error.message}`, 'error');
-    } else if (data) {
+    if (error) { showMessage(`❌ ERRO: ${error.message}`, 'error'); } 
+    else if (data) {
       setEmpresas([data[0], ...empresas]);
       setNome(''); setEmail(''); setTelefone(''); setDataFollowup('');
       showMessage('✅ Parceiro adicionado!', 'success');
     }
   }
 
+  // Atualização rápida na lista (1 campo)
   async function updateCampo(id, campo, valor) {
     setEmpresas(empresas.map(emp => emp.id === id ? { ...emp, [campo]: valor } : emp));
     await supabase.from('patrocinadores').update({ [campo]: valor }).eq('id', id);
   }
 
-  async function editarEmpresa(emp) {
-    const novoNome = window.prompt("✏️ Editar Nome da Empresa:", emp.nome);
-    if (novoNome === null) return;
+  // Funções do Modal de Edição Completa
+  function abrirModalEdicao(emp) {
+    setEmpresaEmEdicao({ ...emp });
+  }
 
-    const novoEmail = window.prompt("📧 Editar Email:", emp.email || '');
-    if (novoEmail === null) return;
+  function fecharModal() {
+    setEmpresaEmEdicao(null);
+  }
 
-    const novoTelefone = window.prompt("📱 Editar Telefone:", emp.telefone || '');
-    if (novoTelefone === null) return;
+  async function guardarEdicaoTotal(e) {
+    e.preventDefault();
+    if (!empresaEmEdicao.nome) return showMessage('O nome não pode estar vazio!', 'error');
 
-    if (!novoNome.trim()) return showMessage('❌ O nome não pode ficar vazio!', 'error');
-
-    showMessage('A atualizar dados...', 'info');
-
-    setEmpresas(empresas.map(e => e.id === emp.id ? { ...e, nome: novoNome, email: novoEmail, telefone: novoTelefone } : e));
+    showMessage('A guardar alterações totais...', 'info');
     
-    const { error } = await supabase.from('patrocinadores').update({ 
-      nome: novoNome, email: novoEmail || null, telefone: novoTelefone || null 
-    }).eq('id', emp.id);
+    const { id, created_at, ...dadosParaAtualizar } = empresaEmEdicao;
+    
+    // Assegurar que campos vazios vão como null para a DB
+    dadosParaAtualizar.email = dadosParaAtualizar.email || null;
+    dadosParaAtualizar.telefone = dadosParaAtualizar.telefone || null;
+    dadosParaAtualizar.data_followup = dadosParaAtualizar.data_followup || null;
 
-    if (error) showMessage(`❌ Erro a atualizar: ${error.message}`, 'error');
-    else showMessage('✅ Contacto atualizado com sucesso!', 'success');
+    const { error } = await supabase.from('patrocinadores').update(dadosParaAtualizar).eq('id', id);
+
+    if (error) {
+      showMessage(`❌ Erro a atualizar: ${error.message}`, 'error');
+    } else {
+      setEmpresas(empresas.map(emp => emp.id === id ? { ...emp, ...dadosParaAtualizar } : emp));
+      fecharModal();
+      showMessage('✅ Parceiro atualizado com sucesso!', 'success');
+    }
   }
 
   async function eliminarEmpresa(id, nomeEmpresa) {
-    if (!window.confirm(`Eliminar permanentemente "${nomeEmpresa}"?`)) return;
+    if (!window.confirm(`Tens a certeza que queres eliminar permanentemente "${nomeEmpresa}"?`)) return;
     const { error } = await supabase.from('patrocinadores').delete().eq('id', id);
     if (!error) {
       setEmpresas(empresas.filter(emp => emp.id !== id));
@@ -118,15 +140,12 @@ export default function App() {
     }
   }
 
+  // Motores de Comunicação
   async function enviarProposta(empresa) {
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A enviar proposta por email para ${empresa.nome}...`, 'info');
     try {
-      const res = await fetch('/api/send-proposal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(empresa)
-      });
+      const res = await fetch('/api/send-proposal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(empresa) });
       if (res.ok) {
         showMessage(`✅ Email Enviado com sucesso!`, 'success');
         updateCampo(empresa.id, 'proposta_enviada_em', new Date().toISOString());
@@ -138,14 +157,9 @@ export default function App() {
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A pedir dados e logo a ${empresa.nome}...`, 'info');
     try {
-      const res = await fetch('/api/send-welcome', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(empresa)
-      });
-      if (res.ok) {
-        showMessage(`✅ Pedido enviado com sucesso!`, 'success');
-      } else showMessage(`❌ Falha no envio do pedido`, 'error');
+      const res = await fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(empresa) });
+      if (res.ok) showMessage(`✅ Pedido enviado com sucesso!`, 'success');
+      else showMessage(`❌ Falha no envio do pedido`, 'error');
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
@@ -198,7 +212,6 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: bFoto, videoUrl: bVideo, empresas: aceites })
       });
-      
       if (res.ok) {
         showMessage('✅ Novidades entregues com sucesso!', 'success');
         const { data: novoHistorico } = await supabase.from('historico_novidades').insert([{ assunto: bAssunto, mensagem: bMensagem, foto_url: bFoto, video_url: bVideo, total_destinatarios: aceites.length }]).select();
@@ -223,13 +236,13 @@ export default function App() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
 
+  // CÁLCULOS DO DASHBOARD
   const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
   const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
   const tarefasPendentes = empresas.filter(e => e.status === 'Aceitou' && (!e.recibo_enviado || !e.logo_recebido || !e.redes_sociais));
   const hoje = new Date().toISOString().split('T')[0];
   const urgentesFollowup = empresas.filter(e => (e.status === 'Pendente' || e.status === 'Em Análise') && e.data_followup && e.data_followup <= hoje);
   
-  // DADOS DO DASHBOARD AVANÇADO
   const valorMedio = totalAceites > 0 ? (angariado / totalAceites).toFixed(0) : 0;
   const countPendentes = empresas.filter(e => e.status === 'Pendente').length;
   const countAnalise = empresas.filter(e => e.status === 'Em Análise').length;
@@ -239,6 +252,14 @@ export default function App() {
   const countOuro = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) >= 150 && Number(e.valor) < 300).length;
   const countPrata = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) >= 50 && Number(e.valor) < 150).length;
   const countApoiante = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) > 0 && Number(e.valor) < 50).length;
+
+  // Encontrar o Top Sponsor
+  let topSponsor = { nome: '-', valor: 0 };
+  empresas.filter(e => e.status === 'Aceitou').forEach(emp => {
+    if(Number(emp.valor) > topSponsor.valor) {
+      topSponsor = { nome: emp.nome, valor: Number(emp.valor) };
+    }
+  });
 
   function getEscalao(valor) {
     const v = Number(valor);
@@ -273,6 +294,11 @@ export default function App() {
         .task-checkbox input { cursor: pointer; transform: scale(1.2); }
         .task-checkbox:hover { opacity: 0.8; }
         .dash-box { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 15px; backdrop-filter: blur(4px); }
+        .modal-content { background: white; padding: 25px; border-radius: 16px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 13px; font-weight: bold; color: #475569; margin-bottom: 5px; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-family: inherit; }
         
         @media (min-width: 768px) {
           .responsive-grid { grid-template-columns: repeat(3, 1fr); }
@@ -284,6 +310,85 @@ export default function App() {
         .btn-hover:hover { opacity: 0.9; transform: scale(0.98); transition: 0.2s; }
       `}} />
 
+      {/* MODAL DE EDIÇÃO TOTAL */}
+      {empresaEmEdicao && (
+        <div className="modal-overlay" onClick={fecharModal}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #f1f5f9', paddingBottom: '15px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Edit size={20}/> Editar Parceiro</h2>
+              <button onClick={fecharModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
+            </div>
+
+            <form onSubmit={guardarEdicaoTotal}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>Nome da Empresa (Obrigatório)</label>
+                  <input type="text" value={empresaEmEdicao.nome} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, nome: e.target.value})} required />
+                </div>
+                
+                <div className="form-group">
+                  <label>Email</label>
+                  <input type="email" value={empresaEmEdicao.email || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, email: e.target.value})} />
+                </div>
+                
+                <div className="form-group">
+                  <label>Telefone</label>
+                  <input type="text" value={empresaEmEdicao.telefone || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, telefone: e.target.value})} />
+                </div>
+
+                <div className="form-group">
+                  <label>Estado do Negócio</label>
+                  <select value={empresaEmEdicao.status} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, status: e.target.value})} style={{ background: getStatusColor(empresaEmEdicao.status), fontWeight: 'bold' }}>
+                    <option value="Pendente">⏳ Pendente</option>
+                    <option value="Em Análise">🤔 Em Análise</option>
+                    <option value="Aceitou">✅ Aceitou</option>
+                    <option value="Recusou">❌ Recusou</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Data de Lembrete (Follow-up)</label>
+                  <input type="date" value={empresaEmEdicao.data_followup || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, data_followup: e.target.value})} />
+                </div>
+
+                <div className="form-group">
+                  <label>Valor Angariado (€)</label>
+                  <input type="number" value={empresaEmEdicao.valor || 0} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, valor: e.target.value})} />
+                </div>
+
+                <div className="form-group">
+                  <label>Idioma do Dossier</label>
+                  <select value={empresaEmEdicao.idioma} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, idioma: e.target.value})}>
+                    <option value="PT">🇵🇹 Português</option>
+                    <option value="ES">🇪🇸 Espanhol</option>
+                  </select>
+                </div>
+              </div>
+
+              {empresaEmEdicao.status === 'Aceitou' && (
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', marginTop: '10px', marginBottom: '15px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', marginBottom: '10px' }}>Checklist de Entregáveis</label>
+                  <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.recibo_enviado} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, recibo_enviado: e.target.checked})} /> Emissão do Recibo</label>
+                  <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.logo_recebido} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, logo_recebido: e.target.checked})} /> Receção do Logotipo</label>
+                  <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.redes_sociais} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, redes_sociais: e.target.checked})} /> Post nas Redes Sociais</label>
+                </div>
+              )}
+
+              <div className="form-group" style={{ marginTop: '10px' }}>
+                <label>Notas e Observações</label>
+                <textarea rows="3" value={empresaEmEdicao.notas || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, notas: e.target.value})}></textarea>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button type="button" onClick={fecharModal} className="btn-hover" style={{ flex: 1, padding: '12px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+                <button type="submit" className="btn-hover" style={{ flex: 2, padding: '12px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>💾 Guardar Alterações</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CABEÇALHO */}
       <header style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px', background: 'white', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderTop: `6px solid ${PRIMARY_COLOR}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <img src="/logo.jpg" alt="Logotipo Oficial Flash Li" style={{ width: '65px', borderRadius: '12px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} />
@@ -328,7 +433,6 @@ export default function App() {
             <button type="submit" className="btn-hover" style={{ flex: '1 1 100%', padding: '14px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>+ Adicionar ao Pipeline</button>
           </form>
 
-          {/* FILTROS E PESQUISA */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center' }} className="flex-wrap-mobile">
             <div style={{ flex: '1 1 250px', position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
@@ -389,7 +493,7 @@ export default function App() {
                   </div>
                 )}
 
-                <input type="text" placeholder="Notas/Observações..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', marginBottom: '10px', background: '#f8fafc' }} />
+                <input type="text" placeholder="Notas/Observações rápidas..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', marginBottom: '10px', background: '#f8fafc' }} />
 
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {emp.status !== 'Aceitou' && emp.email && (
@@ -408,7 +512,8 @@ export default function App() {
                     </a>
                   )}
 
-                  <button onClick={() => editarEmpresa(emp)} className="btn-hover" style={{ padding: '10px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', flexShrink: 0 }}><Edit size={16}/></button>
+                  {/* NOVO BOTÃO DE EDIÇÃO GERAL MODO DEUS */}
+                  <button onClick={() => abrirModalEdicao(emp)} className="btn-hover" style={{ padding: '10px', background: '#1e293b', color: 'white', border: 'none', borderRadius: '8px', flexShrink: 0 }}><PenTool size={16}/></button>
                   <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', flexShrink: 0 }}><Trash2 size={16}/></button>
                 </div>
               </div>
@@ -470,7 +575,7 @@ export default function App() {
                             <input type="date" value={emp.data_followup || ''} onChange={(e) => updateCampo(emp.id, 'data_followup', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '11px', background: atrasado ? '#fee2e2' : 'white', color: atrasado ? '#ef4444' : 'inherit' }} />
                           </div>
                         )}
-                        <textarea placeholder="Notas..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '60px', fontSize: '12px', background: '#f8fafc', resize: 'vertical' }}></textarea>
+                        <textarea placeholder="Notas rápidas..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '60px', fontSize: '12px', background: '#f8fafc', resize: 'vertical' }}></textarea>
                       </td>
                       <td style={{ padding: '15px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap', maxWidth: '160px', marginLeft: 'auto' }}>
@@ -483,7 +588,8 @@ export default function App() {
                             </a>
                           )}
 
-                          <button onClick={() => editarEmpresa(emp)} className="btn-hover" style={{ padding: '10px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Editar Dados"><Edit size={16}/></button>
+                          {/* NOVO BOTÃO DE EDIÇÃO GERAL */}
+                          <button onClick={() => abrirModalEdicao(emp)} className="btn-hover" style={{ padding: '10px', background: '#1e293b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Editar Dados (Modo Completo)"><PenTool size={16}/></button>
                           <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Eliminar Contacto"><Trash2 size={16}/></button>
                         </div>
                       </td>
@@ -500,7 +606,6 @@ export default function App() {
       {tab === 'reports' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
           
-          {/* CABEÇALHO DO DASHBOARD E EXPORTAÇÃO */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: TEXT_PRIMARY }}><BarChart3 size={24} color={PRIMARY_COLOR}/> Resumo Financeiro & Operacional</h2>
             <button onClick={exportToCSV} className="btn-hover" style={{ padding: '10px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Download size={16}/> Exportar Excel</button>
@@ -511,12 +616,18 @@ export default function App() {
             <div className="dash-box" style={{ borderLeft: `5px solid ${PRIMARY_COLOR}` }}>
               <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}><Target size={16}/> Fundo Angariado</div>
               <div style={{ fontSize: '38px', fontWeight: '900', color: TEXT_PRIMARY, margin: '5px 0' }}>{angariado}€</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8', display: 'flex', justifyContent: 'space-between' }}>
-                <span>De um total de {OBJETIVO}€</span>
-                <strong>{((angariado/OBJETIVO)*100).toFixed(0)}%</strong>
+              
+              <div style={{ fontSize: '13px', color: '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  Meta: 
+                  {/* CAMPO DO OBJETIVO EDITÁVEL! */}
+                  <input type="number" value={objetivo} onChange={(e) => handleMetaChange(e.target.value)} style={{ width: '70px', padding: '2px 5px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f8fafc', fontWeight: 'bold' }}/> €
+                </span>
+                <strong>{((angariado/objetivo)*100).toFixed(0)}%</strong>
               </div>
+
               <div style={{ background: '#e2e8f0', height: '8px', borderRadius: '4px', marginTop: '10px', overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min((angariado/OBJETIVO)*100, 100)}%`, background: PRIMARY_COLOR, height: '100%' }}></div>
+                <div style={{ width: `${Math.min((angariado/objetivo)*100, 100)}%`, background: PRIMARY_COLOR, height: '100%' }}></div>
               </div>
             </div>
 
@@ -526,19 +637,21 @@ export default function App() {
               <div style={{ fontSize: '13px', color: '#94a3b8' }}>Valor médio recebido por patrocinador</div>
             </div>
 
-            <div className="dash-box" style={{ borderLeft: '5px solid #10b981' }}>
-              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}><Users size={16}/> Taxa de Sucesso</div>
-              <div style={{ fontSize: '38px', fontWeight: '900', color: '#10b981', margin: '5px 0' }}>{empresas.length > 0 ? ((totalAceites / empresas.length) * 100).toFixed(0) : 0}%</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>{totalAceites} parceiros fechados em {empresas.length} contactos</div>
+            {/* CAIXA DO TOP SPONSOR */}
+            <div className="dash-box" style={{ borderLeft: '5px solid #10b981', background: 'linear-gradient(to right, #ffffff, #f0fdf4)' }}>
+              <div style={{ color: '#166534', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}><Crown size={16}/> Top Sponsor (Maior Apoio)</div>
+              <div style={{ fontSize: '28px', fontWeight: '900', color: '#15803d', margin: '5px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {topSponsor.nome !== '-' ? topSponsor.nome : 'Ainda sem apoios'}
+              </div>
+              <div style={{ fontSize: '15px', color: '#166534', fontWeight: 'bold' }}>{topSponsor.valor > 0 ? `${topSponsor.valor}€ angariados` : '-'}</div>
             </div>
           </div>
 
           {/* LINHA 2: FUNIL DE VENDAS E ESCALÕES */}
           <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
             
-            {/* FUNIL */}
             <div className="dash-box">
-              <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Filter size={18} color="#64748b"/> Funil de Negociação</h3>
+              <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Filter size={18} color="#64748b"/> Funil de Negociação (Taxa de Fecho: {empresas.length > 0 ? ((totalAceites / empresas.length) * 100).toFixed(0) : 0}%)</h3>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 <div>
@@ -563,7 +676,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* QUADRO DE HONRA / ESCALÕES */}
             <div className="dash-box">
               <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Award size={18} color={PRIMARY_COLOR}/> Quadro de Medalhas (Fechados)</h3>
               
