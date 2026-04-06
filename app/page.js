@@ -127,7 +127,7 @@ export default function App() {
   async function guardarEdicaoTotal(e) {
     e.preventDefault();
     if (!empresaEmEdicao.nome) return showMessage('O nome não pode estar vazio!', 'error');
-    showMessage('A guardar alterações totais...', 'info');
+    showMessage('A guardar alterações...', 'info');
     const { id, created_at, ...dadosParaAtualizar } = empresaEmEdicao;
     dadosParaAtualizar.email = dadosParaAtualizar.email || null;
     dadosParaAtualizar.telefone = dadosParaAtualizar.telefone || null;
@@ -228,7 +228,6 @@ export default function App() {
     const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `FlashLi_CRM_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
-
   // --- CÁLCULOS SEGUROS ---
   const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
   const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
@@ -272,14 +271,19 @@ export default function App() {
   else empresasFiltradas.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
   if (loading) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>A carregar Super App... ⏳</div>;
-return (
+
+  return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '15px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
       
       <style dangerouslySetInnerHTML={{__html: `
         .responsive-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
         .desktop-table { display: none; }
         .mobile-card { background: white; border-radius: 12px; padding: 15px; border: 1px solid #e2e8f0; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .flex-wrap-mobile { flex-wrap: wrap; }
+        
+        /* Flex adaptável: Organiza bem num iPad e num PC */
+        .flex-adapt { display: flex; flex-wrap: wrap; gap: 10px; }
+        .flex-adapt > * { flex: 1 1 auto; }
+        
         .task-checkbox { display: flex; alignItems: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 6px 0; font-weight: 500;}
         .task-checkbox input { cursor: pointer; transform: scale(1.2); }
         .dash-box { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; }
@@ -290,11 +294,11 @@ return (
         .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-family: inherit; }
         .btn-hover:hover { opacity: 0.9; transform: scale(0.98); transition: 0.2s; }
         
+        /* O breakpoint 768px ativa o modo Tabela (usado no iPad Portrait/Landscape e PC) */
         @media (min-width: 768px) {
           .responsive-grid { grid-template-columns: repeat(3, 1fr); }
           .desktop-table { display: table; width: 100%; border-collapse: collapse; }
           .mobile-card { display: none; }
-          .flex-wrap-mobile { flex-wrap: nowrap; }
         }
 
         @media print {
@@ -384,7 +388,7 @@ return (
           <button onClick={() => setShowSettings(true)} className="btn-hover" style={{ background: '#f1f5f9', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer', color: '#475569' }} title="Configurar Textos do WhatsApp"><Settings size={20}/></button>
         </div>
         
-        {/* NAVEGAÇÃO COM 4 ABAS (SEM RADAR) */}
+        {/* NAVEGAÇÃO COM 4 ABAS */}
         <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px', marginTop: '10px' }}>
           <button onClick={() => setTab('crm')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'crm' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'crm' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><Users size={18}/> CRM</button>
           <button onClick={() => setTab('reports')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'reports' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'reports' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -401,30 +405,35 @@ return (
       {/* === ABA 1: PIPELINE CRM === */}
       {tab === 'crm' && (
         <div className="no-print">
-          <form onSubmit={addEmpresa} style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="flex-wrap-mobile">
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+          
+          {/* O Form adaptável (flex-adapt) garante que as caixas respiram em iPads */}
+          <form onSubmit={addEmpresa} style={{ marginBottom: '20px', background: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <h3 style={{ margin: 0, fontSize: '16px' }}>Nova Prospecção Manual</h3>
             </div>
-            <input type="text" placeholder="Empresa (Obrigatório)" value={nome} onChange={e => setNome(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-            <input type="email" placeholder="Email (Opcional)" value={email} onChange={e => setEmail(e.target.value)} style={{ flex: '1 1 200px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-            <input type="text" placeholder="Telefone (Opcional)" value={telefone} onChange={e => setTelefone(e.target.value)} style={{ flex: '1 1 120px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-            <div style={{ flex: '1 1 140px', position: 'relative' }}>
-              <span style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 5px', fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>Ligar a:</span>
-              <input type="date" value={dataFollowup} onChange={e => setDataFollowup(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', color: '#334155' }} />
+            
+            <div className="flex-adapt">
+              <input type="text" placeholder="Empresa (Obrigatório)" value={nome} onChange={e => setNome(e.target.value)} style={{ minWidth: '180px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+              <input type="email" placeholder="Email (Opcional)" value={email} onChange={e => setEmail(e.target.value)} style={{ minWidth: '180px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+              <input type="text" placeholder="Telefone (Opcional)" value={telefone} onChange={e => setTelefone(e.target.value)} style={{ minWidth: '120px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+              <div style={{ minWidth: '140px', position: 'relative' }}>
+                <span style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 5px', fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>Ligar a:</span>
+                <input type="date" value={dataFollowup} onChange={e => setDataFollowup(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', color: '#334155' }} />
+              </div>
+              <select value={idioma} onChange={e => setIdioma(e.target.value)} style={{ minWidth: '70px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                <option value="PT">🇵🇹</option><option value="ES">🇪🇸</option>
+              </select>
+              <button type="submit" className="btn-hover" style={{ minWidth: '150px', padding: '12px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>+ Adicionar Parceiro</button>
             </div>
-            <select value={idioma} onChange={e => setIdioma(e.target.value)} style={{ flex: '1 1 70px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-              <option value="PT">🇵🇹</option><option value="ES">🇪🇸</option>
-            </select>
-            <button type="submit" className="btn-hover" style={{ flex: '1 1 100%', padding: '14px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>+ Adicionar Parceiro</button>
           </form>
 
-          {/* BARRA DE PESQUISA E FILTROS COM ÍCONES */}
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center' }} className="flex-wrap-mobile">
+          {/* BARRA DE PESQUISA E FILTROS */}
+          <div className="flex-adapt" style={{ marginBottom: '15px', alignItems: 'center' }}>
             <div style={{ flex: '1 1 200px', position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
               <input type="text" placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
             </div>
-            <div style={{ flex: '1 1 150px', position: 'relative' }}>
+            <div style={{ flex: '1 1 180px', position: 'relative' }}>
               <SortDesc size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
               <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: 'bold', color: '#475569' }}>
                 <option value="recentes">Mais Recentes</option>
@@ -441,7 +450,7 @@ return (
             </div>
           </div>
 
-          {/* LISTA MOBILE */}
+          {/* LISTA MOBILE (Só visível em telemóveis) */}
           {empresasFiltradas.map(emp => {
             const escalao = getEscalao(emp.valor);
             const atrasado = (emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.data_followup && new Date(emp.data_followup).toISOString().split('T')[0] <= hoje;
@@ -487,7 +496,7 @@ return (
             );
           })}
 
-          {/* LISTA DESKTOP */}
+          {/* LISTA DESKTOP E IPAD (Visível de 768px para cima) */}
           <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="desktop-table">
             <table className="desktop-table">
               <thead style={{ background: '#f8fafc', color: '#64748b', textAlign: 'left', fontSize: '13px' }}>
@@ -498,31 +507,34 @@ return (
                   const escalao = getEscalao(emp.valor);
                   return (
                     <tr key={`desktop-${emp.id}`} style={{ borderTop: '1px solid #f1f5f9', background: emp.status === 'Aceitou' ? '#f0fdf4' : 'white' }}>
-                      <td style={{ padding: '15px', borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : '4px solid transparent', width: '25%' }}>
+                      <td style={{ padding: '15px', borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : '4px solid transparent', width: '25%', verticalAlign: 'top' }}>
                         <div style={{ fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}>{emp.nome} {emp.status === 'Aceitou' && escalao.icon}</div>
                         <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{emp.email || 'S/ Email'} <br/> {emp.telefone}</div>
                         {emp.notas && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px', fontStyle: 'italic' }}>{emp.notas.substring(0, 50)}...</div>}
                       </td>
-                      <td style={{ padding: '15px', width: '20%' }}>
+                      <td style={{ padding: '15px', width: '20%', verticalAlign: 'top' }}>
                         <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', outline: 'none', background: getStatusColor(emp.status), width: '100%' }}>
                           <option value="Pendente">⏳ Pendente</option><option value="Em Análise">🤔 Em Análise</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
                         </select>
                         {emp.proposta_enviada_em && <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '5px' }}>✓ Proposta Enviada</div>}
                       </td>
-                      <td style={{ padding: '15px', width: '35%' }}>
+                      <td style={{ padding: '15px', width: '35%', verticalAlign: 'top' }}>
                         {emp.status === 'Aceitou' ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'white', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                              <input type="number" placeholder="€" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '80px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
-                              <span style={{fontSize: '12px', fontWeight: 'bold', color: escalao.cor}}>{escalao.nome}</span>
+                              <input type="number" placeholder="€" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '90px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
+                              <span style={{fontSize: '13px', fontWeight: 'bold', color: escalao.cor}}>{escalao.nome}</span>
                             </div>
                             <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Recibo Emitido</label>
                             <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> Logo Recebido</label>
                             <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> Post Publicado</label>
+                            
+                            {/* ESTE ERA O BOTÃO QUE FALTAVA NO IPAD/PC! */}
+                            <button onClick={() => enviarBoasVindas(emp)} className="btn-hover" style={{ width: '100%', padding: '10px', marginTop: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}><Mail size={15}/> Pedir NIF & Logo</button>
                           </div>
                         ) : <span style={{color: '#cbd5e1'}}>-</span>}
                       </td>
-                      <td style={{ padding: '15px', textAlign: 'right', width: '20%' }}>
+                      <td style={{ padding: '15px', textAlign: 'right', width: '20%', verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap', maxWidth: '160px', marginLeft: 'auto' }}>
                           {emp.status !== 'Aceitou' && emp.email && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email da Proposta"><Send size={16}/></button>}
                           {emp.status !== 'Aceitou' && emp.telefone && <a onClick={() => updateCampo(emp.id, 'proposta_enviada_em', new Date().toISOString())} href={getWhatsAppPropostaLink(emp)} target="_blank" className="btn-hover" style={{ padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="WhatsApp"><MessageCircle size={16}/></a>}
@@ -546,7 +558,7 @@ return (
             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: TEXT_PRIMARY }}><BarChart3 size={24} color={PRIMARY_COLOR}/> Resumo Financeiro & Operacional</h2>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={exportToCSV} className="btn-hover" style={{ padding: '10px 20px', background: 'white', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Download size={16}/> Excel (.csv)</button>
-              <button onClick={() => window.print()} className="btn-hover" style={{ padding: '10px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Printer size={16}/> Salvar Relatório PDF</button>
+              <button onClick={() => window.print()} className="btn-hover" style={{ padding: '10px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Printer size={16}/> Salvar PDF</button>
             </div>
           </div>
 
@@ -564,7 +576,7 @@ return (
             <div className="dash-box" style={{ borderLeft: '5px solid #3b82f6' }}>
               <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}><TrendingUp size={16}/> Ticket Médio</div>
               <div style={{ fontSize: '38px', fontWeight: '900', color: '#3b82f6', margin: '5px 0' }}>{valorMedio}€</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Valor médio recebido por patrocinador</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Valor médio recebido por parceiro</div>
             </div>
 
             <div className="dash-box" style={{ borderLeft: '5px solid #10b981', background: 'linear-gradient(to right, #ffffff, #f0fdf4)' }}>
@@ -586,7 +598,7 @@ return (
             </div>
 
             <div className="dash-box">
-              <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Award size={18} color={PRIMARY_COLOR}/> Quadro de Medalhas (Fechados)</h3>
+              <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Award size={18} color={PRIMARY_COLOR}/> Quadro de Medalhas</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}><div style={{ fontSize: '24px', marginBottom: '5px' }}>💎</div><div style={{ fontSize: '20px', fontWeight: '900', color: '#3b82f6' }}>{parceirosDiamante.length}</div><div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>DIAMANTE</div></div>
                 <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}><div style={{ fontSize: '24px', marginBottom: '5px' }}>🥇</div><div style={{ fontSize: '20px', fontWeight: '900', color: '#eab308' }}>{parceirosOuro.length}</div><div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>OURO</div></div>
