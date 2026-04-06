@@ -149,18 +149,44 @@ export default function App() {
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
+  // --- WHATSAPP DA PROPOSTA (AGORA COM PT E ES AUTOMÁTICO) ---
   function getWhatsAppPropostaLink(empresa) {
     let numero = empresa.telefone ? empresa.telefone.replace(/\D/g, '') : '';
-    if (numero.length === 9 && numero.startsWith('9')) numero = '351' + numero;
+    
+    // Auto-detecta o indicativo pelo idioma se tiver 9 números
+    if (numero.length === 9) {
+      numero = empresa.idioma === 'ES' ? '34' + numero : '351' + numero;
+    }
+    
     const linkDossier = "https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf";
-    const msg = `Olá! Sou o Hugo, pai da atleta Matilde Mota (Flash Li Dance School).\n\nEstamos à procura de parceiros para apoiar a nossa equipa rumo ao Campeonato do Mundo de Dança (DWCup 2026) em Dublin. 🇮🇪\n\nDeixo aqui o nosso dossier com a história da Matilde e as propostas de visibilidade para a *${empresa.nome}*:\n📄 ${linkDossier}\n\nGostaria muito de saber a vossa opinião! Muito obrigado.`;
+    let msg = "";
+
+    if (empresa.idioma === 'ES') {
+      msg = `¡Hola! Soy Hugo, padre de la atleta Matilde Mota (Flash Li Dance School).\n\nEstamos buscando socios para apoyar a nuestro equipo rumbo al Campeonato Mundial de Danza (DWCup 2026) en Dublín. 🇮🇪\n\nLe dejo aquí nuestro dossier con la historia de Matilde y las propuestas de visibilidad para *${empresa.nome}*:\n📄 ${linkDossier}\n\n¡Me gustaría mucho saber su opinión! Muchas gracias.`;
+    } else {
+      msg = `Olá! Sou o Hugo, pai da atleta Matilde Mota (Flash Li Dance School).\n\nEstamos à procura de parceiros para apoiar a nossa equipa rumo ao Campeonato do Mundo de Dança (DWCup 2026) em Dublin. 🇮🇪\n\nDeixo aqui o nosso dossier com a história da Matilde e as propostas de visibilidade para a *${empresa.nome}*:\n📄 ${linkDossier}\n\nGostaria muito de saber a vossa opinião! Muito obrigado.`;
+    }
+
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   }
 
+  // --- WHATSAPP DE FOLLOW-UP (AGORA COM PT E ES AUTOMÁTICO) ---
   function getWhatsAppFollowUpLink(empresa) {
     let numero = empresa.telefone ? empresa.telefone.replace(/\D/g, '') : '';
-    if (numero.length === 9 && numero.startsWith('9')) numero = '351' + numero;
-    const msg = `Olá! Sou o Hugo, da Flash Li Dance School.\n\nEntrámos recentemente em contacto com a *${empresa.nome}* para uma parceria rumo a Dublin 🇮🇪.\n\nGostava apenas de saber se tiveram oportunidade de analisar o nosso dossier ou se precisam de alguma informação adicional da minha parte.\n\nMuito obrigado pelo vosso tempo!`;
+    
+    // Auto-detecta o indicativo
+    if (numero.length === 9) {
+      numero = empresa.idioma === 'ES' ? '34' + numero : '351' + numero;
+    }
+    
+    let msg = "";
+
+    if (empresa.idioma === 'ES') {
+      msg = `¡Hola! Soy Hugo, de Flash Li Dance School.\n\nRecientemente nos pusimos en contacto con *${empresa.nome}* para una colaboración rumbo a Dublín 🇮🇪.\n\nMe gustaría saber si tuvieron la oportunidad de analizar nuestro dossier o si necesitan alguna información adicional.\n\n¡Muchas gracias por su tiempo!`;
+    } else {
+      msg = `Olá! Sou o Hugo, da Flash Li Dance School.\n\nEntrámos recentemente em contacto com a *${empresa.nome}* para uma parceria rumo a Dublin 🇮🇪.\n\nGostava apenas de saber se tiveram oportunidade de analisar o nosso dossier ou se precisam de alguma informação adicional da minha parte.\n\nMuito obrigado pelo vosso tempo!`;
+    }
+
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   }
 
@@ -312,7 +338,7 @@ export default function App() {
             <button type="submit" className="btn-hover" style={{ flex: '1 1 100%', padding: '14px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>+ Adicionar ao Pipeline</button>
           </form>
 
-          {/* FILTROS E PESQUISA (Agora com EM ANÁLISE) */}
+          {/* FILTROS E PESQUISA */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center' }} className="flex-wrap-mobile">
             <div style={{ flex: '1 1 250px', position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
