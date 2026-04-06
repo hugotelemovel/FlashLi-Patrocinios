@@ -85,10 +85,9 @@ export default function App() {
     await supabase.from('patrocinadores').update({ [campo]: valor }).eq('id', id);
   }
 
-  // --- NOVA FUNÇÃO: EDITAR DADOS PRINCIPAIS ---
   async function editarEmpresa(emp) {
     const novoNome = window.prompt("✏️ Editar Nome da Empresa:", emp.nome);
-    if (novoNome === null) return; // Se o utilizador clicar em Cancelar
+    if (novoNome === null) return;
 
     const novoEmail = window.prompt("📧 Editar Email:", emp.email || '');
     if (novoEmail === null) return;
@@ -100,14 +99,10 @@ export default function App() {
 
     showMessage('A atualizar dados...', 'info');
 
-    // Atualiza localmente no ecrã
     setEmpresas(empresas.map(e => e.id === emp.id ? { ...e, nome: novoNome, email: novoEmail, telefone: novoTelefone } : e));
     
-    // Atualiza na base de dados
     const { error } = await supabase.from('patrocinadores').update({ 
-      nome: novoNome, 
-      email: novoEmail || null, 
-      telefone: novoTelefone || null 
+      nome: novoNome, email: novoEmail || null, telefone: novoTelefone || null 
     }).eq('id', emp.id);
 
     if (error) showMessage(`❌ Erro a atualizar: ${error.message}`, 'error');
@@ -140,7 +135,7 @@ export default function App() {
   }
 
   async function enviarBoasVindas(empresa) {
-    if (!empresa.email) return showMessage('Esta empresa não tem email guardado. Tens de os contactar por telefone!', 'error');
+    if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A pedir dados e logo a ${empresa.nome}...`, 'info');
     try {
       const res = await fetch('/api/send-welcome', {
@@ -202,18 +197,11 @@ export default function App() {
       
       if (res.ok) {
         showMessage('✅ Novidades entregues com sucesso!', 'success');
-        
-        const { data: novoHistorico } = await supabase.from('historico_novidades').insert([{
-          assunto: bAssunto, mensagem: bMensagem, foto_url: bFoto, video_url: bVideo, total_destinatarios: aceites.length
-        }]).select();
-
+        const { data: novoHistorico } = await supabase.from('historico_novidades').insert([{ assunto: bAssunto, mensagem: bMensagem, foto_url: bFoto, video_url: bVideo, total_destinatarios: aceites.length }]).select();
         if (novoHistorico) setHistorico([novoHistorico[0], ...historico]);
         if (nomeArquivoTemp) await supabase.storage.from('fotos').remove([nomeArquivoTemp]);
-        
         setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo(''); setNomeArquivoTemp('');
-      } else {
-        showMessage('❌ Erro no envio dos emails.', 'error');
-      }
+      } else showMessage('❌ Erro no envio.', 'error');
     } catch (err) { showMessage('Erro técnico no servidor.', 'error'); }
   }
 
@@ -235,7 +223,7 @@ export default function App() {
   const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
   const tarefasPendentes = empresas.filter(e => e.status === 'Aceitou' && (!e.recibo_enviado || !e.logo_recebido || !e.redes_sociais)).length;
   const hoje = new Date().toISOString().split('T')[0];
-  const followupsAtrasados = empresas.filter(e => e.status === 'Pendente' && e.data_followup && e.data_followup <= hoje).length;
+  const followupsAtrasados = empresas.filter(e => (e.status === 'Pendente' || e.status === 'Em Análise') && e.data_followup && e.data_followup <= hoje).length;
 
   function getEscalao(valor) {
     const v = Number(valor);
@@ -244,6 +232,13 @@ export default function App() {
     if (v < 150) return { nome: 'Prata', cor: '#94a3b8', icon: '🥈' }; 
     if (v < 300) return { nome: 'Ouro', cor: '#eab308', icon: '🥇' }; 
     return { nome: 'Diamante', cor: '#3b82f6', icon: '💎' }; 
+  }
+
+  function getStatusColor(status) {
+    if (status === 'Aceitou') return '#dcfce7'; // Verde
+    if (status === 'Pendente') return '#fef9c3'; // Amarelo
+    if (status === 'Em Análise') return '#ffedd5'; // Laranja
+    return '#fee2e2'; // Vermelho (Recusou)
   }
 
   let empresasFiltradas = empresas.filter(emp => emp.nome.toLowerCase().includes(searchTerm.toLowerCase()) || (emp.email && emp.email.toLowerCase().includes(searchTerm.toLowerCase())));
@@ -273,7 +268,6 @@ export default function App() {
         .btn-hover:hover { opacity: 0.9; transform: scale(0.98); transition: 0.2s; }
       `}} />
 
-      {/* CABEÇALHO */}
       <header style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px', background: 'white', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderTop: `6px solid ${PRIMARY_COLOR}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <img src="/logo.jpg" alt="Logotipo Oficial Flash Li" style={{ width: '65px', borderRadius: '12px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} />
@@ -295,7 +289,7 @@ export default function App() {
 
       {msg && <div style={{ background: msgType === 'error' ? '#fee2e2' : '#f0fdf4', color: msgType === 'error' ? '#991b1b' : '#166534', padding: '15px', borderRadius: '10px', marginBottom: '20px', fontWeight: 'bold', border: `1px solid ${msgType === 'error' ? '#f87171' : '#4ade80'}` }}>{msg}</div>}
 
-      {/* === ABA: PIPELINE CRM === */}
+      {/* === PIPELINE CRM === */}
       {tab === 'crm' && (
         <div style={{ background: 'transparent' }}>
           <form onSubmit={addEmpresa} style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} className="flex-wrap-mobile">
@@ -318,15 +312,16 @@ export default function App() {
             <button type="submit" className="btn-hover" style={{ flex: '1 1 100%', padding: '14px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>+ Adicionar ao Pipeline</button>
           </form>
 
+          {/* FILTROS E PESQUISA (Agora com EM ANÁLISE) */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center' }} className="flex-wrap-mobile">
             <div style={{ flex: '1 1 250px', position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
               <input type="text" placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
             </div>
             <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', flex: '1 1 100%' }}>
-              {['Todos', 'Pendente', 'Aceitou', 'Recusou'].map(status => (
+              {['Todos', 'Pendente', 'Em Análise', 'Aceitou', 'Recusou'].map(status => (
                 <button key={status} onClick={() => setFilterStatus(status)} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: filterStatus === status ? PRIMARY_COLOR : '#e2e8f0', color: filterStatus === status ? 'white' : '#475569', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>
-                  {status === 'Aceitou' ? '✅ Aceites' : status === 'Recusou' ? '❌ Recusados' : status === 'Pendente' ? '⏳ Pendentes' : '🌍 Todos'}
+                  {status === 'Aceitou' ? '✅ Aceites' : status === 'Recusou' ? '❌ Recusados' : status === 'Em Análise' ? '🤔 Em Análise' : status === 'Pendente' ? '⏳ Pendentes' : '🌍 Todos'}
                 </button>
               ))}
             </div>
@@ -335,7 +330,7 @@ export default function App() {
           {/* === LISTA MOBILE === */}
           {empresasFiltradas.map(emp => {
             const escalao = getEscalao(emp.valor);
-            const atrasado = emp.status === 'Pendente' && emp.data_followup && emp.data_followup <= hoje;
+            const atrasado = (emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.data_followup && emp.data_followup <= hoje;
 
             return (
               <div key={`mobile-${emp.id}`} className="mobile-card" style={{ borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : atrasado ? '4px solid #ef4444' : '1px solid #e2e8f0' }}>
@@ -346,12 +341,15 @@ export default function App() {
                     </div>
                     <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email || 'S/ Email'} {emp.telefone && `• ${emp.telefone}`}</div>
                   </div>
-                  <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', background: emp.status === 'Aceitou' ? '#dcfce7' : emp.status === 'Pendente' ? '#fef9c3' : '#fee2e2' }}>
-                    <option value="Pendente">⏳ Pendente</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
+                  <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', background: getStatusColor(emp.status) }}>
+                    <option value="Pendente">⏳ Pendente</option>
+                    <option value="Em Análise">🤔 Em Análise</option>
+                    <option value="Aceitou">✅ Aceitou</option>
+                    <option value="Recusou">❌ Recusou</option>
                   </select>
                 </div>
 
-                {emp.status === 'Pendente' && emp.data_followup && (
+                {(emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.data_followup && (
                   <div style={{ fontSize: '11px', color: atrasado ? '#ef4444' : '#64748b', fontWeight: atrasado ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '10px', background: atrasado ? '#fee2e2' : '#f1f5f9', padding: '4px 8px', borderRadius: '4px', width: 'fit-content' }}>
                     <Calendar size={12}/> Ligar a: {new Date(emp.data_followup).toLocaleDateString('pt-PT')} {atrasado && '(Atrasado!)'}
                   </div>
@@ -366,20 +364,11 @@ export default function App() {
                     
                     <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
                       <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#1a1a1a', marginBottom: '8px', textTransform: 'uppercase' }}>Checklist Obrigatória:</div>
-                      
-                      <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}>
-                        <input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Emitir Recibo Oficial
-                      </label>
-                      <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}>
-                        <input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> Receber Logotipo
-                      </label>
-                      <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}>
-                        <input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> Post de Agradecimento (Redes)
-                      </label>
+                      <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Emitir Recibo Oficial</label>
+                      <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> Receber Logotipo</label>
+                      <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> Post de Agradecimento</label>
 
-                      <button onClick={() => enviarBoasVindas(emp)} className="btn-hover" style={{ width: '100%', padding: '10px', marginTop: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <Mail size={16}/> Pedir Dados Fiscais e Logo
-                      </button>
+                      <button onClick={() => enviarBoasVindas(emp)} className="btn-hover" style={{ width: '100%', padding: '10px', marginTop: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}><Mail size={16}/> Pedir Dados Fiscais</button>
                     </div>
                   </div>
                 )}
@@ -391,19 +380,18 @@ export default function App() {
                     <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Send size={14}/> Email Proposta</button>
                   )}
                   
-                  {emp.status === 'Pendente' && emp.telefone && (
+                  {emp.status !== 'Aceitou' && emp.telefone && (
                     <a onClick={() => updateCampo(emp.id, 'proposta_enviada_em', new Date().toISOString())} href={getWhatsAppPropostaLink(emp)} target="_blank" className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
                       <MessageCircle size={14}/> WA Proposta
                     </a>
                   )}
 
-                  {emp.status === 'Pendente' && emp.telefone && emp.proposta_enviada_em && (
+                  {(emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.telefone && emp.proposta_enviada_em && (
                     <a href={getWhatsAppFollowUpLink(emp)} target="_blank" className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#128C7E', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
                       <MessageCircle size={14}/> WA Follow-up
                     </a>
                   )}
 
-                  {/* NOVOS BOTÕES EDITAR / ELIMINAR NO MOBILE */}
                   <button onClick={() => editarEmpresa(emp)} className="btn-hover" style={{ padding: '10px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', flexShrink: 0 }}><Edit size={16}/></button>
                   <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', flexShrink: 0 }}><Trash2 size={16}/></button>
                 </div>
@@ -426,7 +414,7 @@ export default function App() {
               <tbody>
                 {empresasFiltradas.map(emp => {
                   const escalao = getEscalao(emp.valor);
-                  const atrasado = emp.status === 'Pendente' && emp.data_followup && emp.data_followup <= hoje;
+                  const atrasado = (emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.data_followup && emp.data_followup <= hoje;
 
                   return (
                     <tr key={`desktop-${emp.id}`} style={{ borderTop: '1px solid #f1f5f9', background: emp.status === 'Aceitou' ? '#f0fdf4' : 'white' }}>
@@ -435,8 +423,11 @@ export default function App() {
                         <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email || 'S/ Email'} <br/> {emp.telefone}</div>
                       </td>
                       <td style={{ padding: '15px' }}>
-                        <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', outline: 'none' }}>
-                          <option value="Pendente">⏳ Pendente</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
+                        <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', outline: 'none', background: getStatusColor(emp.status) }}>
+                          <option value="Pendente">⏳ Pendente</option>
+                          <option value="Em Análise">🤔 Em Análise</option>
+                          <option value="Aceitou">✅ Aceitou</option>
+                          <option value="Recusou">❌ Recusou</option>
                         </select>
                         {emp.proposta_enviada_em && <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '5px' }}>✓ Proposta Enviada</div>}
                       </td>
@@ -448,25 +439,16 @@ export default function App() {
                               <span style={{fontSize: '12px', fontWeight: 'bold', color: escalao.cor}}>{escalao.nome}</span>
                             </div>
                             
-                            <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}>
-                              <input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> 1. Recibo Emitido
-                            </label>
-                            <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}>
-                              <input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> 2. Logo Recebido
-                            </label>
-                            <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}>
-                              <input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> 3. Post nas Redes
-                            </label>
+                            <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> 1. Recibo Emitido</label>
+                            <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> 2. Logo Recebido</label>
+                            <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}><input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> 3. Post nas Redes</label>
 
-                            <button onClick={() => enviarBoasVindas(emp)} className="btn-hover" style={{ padding: '8px', marginTop: '5px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', cursor: 'pointer', fontSize: '11px' }}>
-                              <Mail size={14}/> Pedir NIF & Logo
-                            </button>
-
+                            <button onClick={() => enviarBoasVindas(emp)} className="btn-hover" style={{ padding: '8px', marginTop: '5px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', cursor: 'pointer', fontSize: '11px' }}><Mail size={14}/> Pedir NIF & Logo</button>
                           </div>
                         ) : <span style={{color: '#cbd5e1'}}>-</span>}
                       </td>
                       <td style={{ padding: '15px' }}>
-                        {emp.status === 'Pendente' && (
+                        {(emp.status === 'Pendente' || emp.status === 'Em Análise') && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px' }}>
                             <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>Ligar a:</span>
                             <input type="date" value={emp.data_followup || ''} onChange={(e) => updateCampo(emp.id, 'data_followup', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '11px', background: atrasado ? '#fee2e2' : 'white', color: atrasado ? '#ef4444' : 'inherit' }} />
@@ -479,13 +461,12 @@ export default function App() {
                           
                           {emp.status !== 'Aceitou' && emp.email && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email da Proposta"><Send size={16}/></button>}
                           
-                          {emp.status === 'Pendente' && emp.telefone && (
+                          {emp.status !== 'Aceitou' && emp.telefone && (
                             <a onClick={() => updateCampo(emp.id, 'proposta_enviada_em', new Date().toISOString())} href={getWhatsAppPropostaLink(emp)} target="_blank" className="btn-hover" style={{ padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Proposta pelo WhatsApp">
                               <MessageCircle size={16}/>
                             </a>
                           )}
 
-                          {/* BOTAO EDITAR E LIXO */}
                           <button onClick={() => editarEmpresa(emp)} className="btn-hover" style={{ padding: '10px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Editar Dados"><Edit size={16}/></button>
                           <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Eliminar Contacto"><Trash2 size={16}/></button>
                         </div>
