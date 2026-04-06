@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle, X, Crown, PenTool, Printer, LayoutGrid, SortDesc, Radar, MapPin, Globe, ArrowRight, Settings } from 'lucide-react';
+import { BarChart3, Users, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, Phone, Globe, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle, X, Crown, PenTool, Printer, LayoutGrid, SortDesc, Radar, ArrowRight, Settings } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
@@ -99,36 +99,37 @@ export default function App() {
     if (!error && data) setHistorico(data);
   }
 
-  // --- RADAR IA CORRIGIDO ---
+  // --- NOVO RADAR IA (MOTOR MELHORADO) ---
   async function explorarRadar(e) {
     e.preventDefault();
-    if (!searchNicho || !searchLocal) return showMessage('Preenche o nicho e a localidade!', 'error');
+    if (!searchNicho || !searchLocal) return showMessage('Preenche o que procuras e a cidade!', 'error');
     
     setLoadingRadar(true);
     setRadarResultados([]);
-    showMessage(`A varrer num raio de ${raioRadar}km em ${searchLocal}...`, 'info');
+    showMessage(`A procurar por "${searchNicho}" num raio de ${raioRadar}km em ${searchLocal}...`, 'info');
 
     try {
-      // 1. Procurar coordenadas da cidade
+      // 1. Procurar as coordenadas da cidade
       const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchLocal)}&format=json&limit=1`);
       const geoData = await geoRes.json();
       
       if (!geoData || geoData.length === 0) {
         setLoadingRadar(false);
-        return showMessage(`Não encontrei a localidade "${searchLocal}" no mapa global.`, 'error');
+        return showMessage(`Não encontrei a cidade "${searchLocal}" no mapa.`, 'error');
       }
 
       const { lat, lon } = geoData[0];
       const raioMetros = raioRadar * 1000;
 
-      // 2. Query simplificada e agressiva para evitar bloqueios do Overpass
+      // 2. Query Avançada e 100% Legal para varrer Nomes e Categorias (Amenity/Shop)
       const overpassQuery = `
-        [out:json][timeout:25];
+        [out:json][timeout:30];
         (
-          node["name"~"${searchNicho}",i](around:${raioMetros},${lat},${lon});
-          way["name"~"${searchNicho}",i](around:${raioMetros},${lat},${lon});
+          nwr["name"~"${searchNicho}",i](around:${raioMetros},${lat},${lon});
+          nwr["amenity"~"${searchNicho}",i](around:${raioMetros},${lat},${lon});
+          nwr["shop"~"${searchNicho}",i](around:${raioMetros},${lat},${lon});
         );
-        out tags;
+        out center tags;
       `;
 
       const res = await fetch('https://overpass-api.de/api/interpreter', {
@@ -136,34 +137,34 @@ export default function App() {
         body: overpassQuery
       });
       
-      if (!res.ok) throw new Error('A API do mapa está sobrecarregada, tenta de novo.');
+      if (!res.ok) throw new Error('O servidor do mapa está sobrecarregado, tenta de novo.');
       const data = await res.json();
 
       if (data && data.elements && data.elements.length > 0) {
         const empresasEncontradas = data.elements.map(el => ({
           id_radar: el.id,
-          nome: el.tags.name,
+          nome: el.tags.name || el.tags.brand || `${searchNicho} (${el.tags.amenity || el.tags.shop || 'Local'})`,
           telefone: el.tags.phone || el.tags['contact:phone'] || '',
           website: el.tags.website || el.tags['contact:website'] || '',
           email: el.tags.email || el.tags['contact:email'] || ''
         })).filter(emp => emp.nome); 
 
-        // Remover nomes duplicados
+        // Remover duplicados
         const unicos = Array.from(new Set(empresasEncontradas.map(a => a.nome)))
           .map(nome => empresasEncontradas.find(a => a.nome === nome));
 
         if (unicos.length === 0) {
-           showMessage('Encontrei locais, mas nenhum tinha nome registado.', 'error');
+           showMessage('Encontrei locais, mas sem nome comercial registado.', 'error');
         } else {
            setRadarResultados(unicos.slice(0, 40)); 
            showMessage(`✅ O Radar encontrou ${unicos.length} empresas!`, 'success');
         }
       } else {
-        showMessage('O Radar não encontrou nada. Tenta termos mais gerais (ex: "Farmácia", "Restaurante", "Hotel").', 'error');
+        showMessage(`O Radar não encontrou nada. Tenta termos como "Farmácia", "Clínica" ou "Restaurante".`, 'error');
       }
 
     } catch (error) {
-      showMessage(`Erro técnico: ${error.message || 'Falha na rede.'}`, 'error');
+      showMessage(`Erro técnico de rede: ${error.message}`, 'error');
     }
     setLoadingRadar(false);
   }
@@ -190,7 +191,6 @@ export default function App() {
     }
   }
 
-  // --- CRM BASE ---
   async function addEmpresa(e) {
     e.preventDefault();
     if (!nome) return showMessage('O Nome da empresa é obrigatório!', 'error');
@@ -275,7 +275,6 @@ export default function App() {
     return `https://wa.me/${numero}?text=${encodeURIComponent(finalMsg)}`;
   }
 
-  // --- BROADCAST ---
   async function uploadFotoDireta(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -321,7 +320,6 @@ export default function App() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
 
-  // --- CÁLCULOS SEGUROS ---
   const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
   const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
   const tarefasPendentes = empresas.filter(e => e.status === 'Aceitou' && (!e.recibo_enviado || !e.logo_recebido || !e.redes_sociais));
@@ -364,8 +362,7 @@ export default function App() {
   else empresasFiltradas.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
   if (loading) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>A carregar Super App... ⏳</div>;
-
-  return (
+return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '15px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
       
       <style dangerouslySetInnerHTML={{__html: `
@@ -499,7 +496,7 @@ export default function App() {
           <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderTop: `6px solid #8b5cf6` }}>
             <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '24px', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '10px' }}><Radar size={28} color="#8b5cf6"/> Radar de Prospeção (Grátis)</h2>
             <p style={{ color: '#64748b', fontSize: '15px', lineHeight: '1.5' }}>
-              Procura por empresas no mapa. Se gostares de uma empresa, move-a para o teu CRM para lhe enviares um WhatsApp.
+              Procura por empresas no mapa da tua zona. Escreve termos como <b>"Farmácia"</b>, <b>"Restaurante"</b>, ou <b>"Clínica"</b>.
             </p>
 
             <form onSubmit={explorarRadar} style={{ display: 'flex', gap: '15px', marginTop: '25px', flexWrap: 'wrap' }}>
