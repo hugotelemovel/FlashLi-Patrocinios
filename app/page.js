@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, Pencil } from 'lucide-react';
+import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, MessageCircle, Mail } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
@@ -25,10 +25,8 @@ export default function App() {
   const [bVideo, setBVideo] = useState('');
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [nomeArquivoTemp, setNomeArquivoTemp] = useState('');
-  const [mostrarEditar, setMostrarEditar] = useState(false);
-  const [edicao, setEdicao] = useState({ id: null, nome: '', email: '', telefone: '', idioma: 'PT' });
 
-  const OBJETIVO = 1500;
+  const OBJETIVO = 3000;
   const PRIMARY_COLOR = '#d4af37'; 
   const TEXT_PRIMARY = '#1a1a1a'; 
 
@@ -64,7 +62,6 @@ export default function App() {
     if (!nome || !email) return;
     showMessage('A adicionar parceiro...', 'info');
     
-    // Inserção à prova de bala
     const novaEmpresa = { 
       nome, 
       email, 
@@ -90,38 +87,6 @@ export default function App() {
     await supabase.from('patrocinadores').update({ [campo]: valor }).eq('id', id);
   }
 
-  function abrirEditor(emp) {
-    setEdicao({
-      id: emp.id,
-      nome: emp.nome || '',
-      email: emp.email || '',
-      telefone: emp.telefone || '',
-      idioma: emp.idioma || 'PT'
-    });
-    setMostrarEditar(true);
-  }
-
-  async function guardarEdicao(e) {
-    e.preventDefault();
-
-    const payload = {
-      nome: edicao.nome,
-      email: edicao.email,
-      telefone: edicao.telefone,
-      idioma: edicao.idioma
-    };
-
-    const { error } = await supabase.from('patrocinadores').update(payload).eq('id', edicao.id);
-    if (error) {
-      showMessage(`❌ Erro a guardar alterações: ${error.message}`, 'error');
-      return;
-    }
-
-    setEmpresas(empresas.map(emp => emp.id === edicao.id ? { ...emp, ...payload } : emp));
-    setMostrarEditar(false);
-    showMessage('✅ Patrocinador atualizado com sucesso!', 'success');
-  }
-
   async function eliminarEmpresa(id, nomeEmpresa) {
     if (!window.confirm(`Eliminar permanentemente "${nomeEmpresa}"?`)) return;
     const { error } = await supabase.from('patrocinadores').delete().eq('id', id);
@@ -144,6 +109,35 @@ export default function App() {
         updateCampo(empresa.id, 'proposta_enviada_em', new Date().toISOString());
       } else showMessage(`❌ Falha no envio`, 'error');
     } catch (err) { showMessage('Erro técnico.', 'error'); }
+  }
+
+  // --- NOVA FUNÇÃO: EMAIL DE BOAS-VINDAS / ONBOARDING ---
+  async function enviarBoasVindas(empresa) {
+    showMessage(`A enviar pedido de NIF e Logo para ${empresa.nome}...`, 'info');
+    try {
+      const res = await fetch('/api/send-welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(empresa)
+      });
+      if (res.ok) {
+        showMessage(`✅ Pedido enviado com sucesso!`, 'success');
+      } else showMessage(`❌ Falha no envio do pedido`, 'error');
+    } catch (err) { showMessage('Erro técnico.', 'error'); }
+  }
+
+  // --- NOVA FUNÇÃO: GERADOR DO TEXTO DO WHATSAPP ---
+  function getWhatsAppLink(empresa) {
+    let numero = empresa.telefone ? empresa.telefone.replace(/\D/g, '') : '';
+    // Se tiver 9 dígitos e começar por 9, adiciona o 351 de Portugal
+    if (numero.length === 9 && numero.startsWith('9')) {
+      numero = '351' + numero;
+    }
+    
+    // Podes alterar o texto do WhatsApp aqui à vontade!
+    const msg = `Olá! Sou o Hugo, pai da atleta Matilde Mota (Flash Li Dance School).\n\nEnviei recentemente um email à *${empresa.nome}* com uma proposta de parceria para apoiar a nossa equipa rumo ao Campeonato do Mundo de Dança (DWCup 2026) em Dublin. 🇮🇪\n\nGostava apenas de saber se tiveram oportunidade de analisar o nosso dossier ou se precisam de alguma informação adicional da minha parte.\n\nMuito obrigado desde já pelo vosso tempo e atenção!`;
+    
+    return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   }
 
   async function uploadFotoDireta(e) {
@@ -330,7 +324,7 @@ export default function App() {
                     <div style={{ fontWeight: '900', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '5px' }}>
                       {emp.nome} {emp.status === 'Aceitou' && escalao.icon}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email} {emp.telefone && `• ${emp.telefone}`}</div>
                   </div>
                   <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', background: emp.status === 'Aceitou' ? '#dcfce7' : emp.status === 'Pendente' ? '#fef9c3' : '#fee2e2' }}>
                     <option value="Pendente">⏳ Pendente</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
@@ -357,25 +351,35 @@ export default function App() {
                       <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}>
                         <input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Emitir Recibo Oficial
                       </label>
-                      
                       <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}>
                         <input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> Receber Logotipo
                       </label>
-                      
                       <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}>
                         <input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> Post de Agradecimento (Redes)
                       </label>
+
+                      {/* BOTÃO MÁGICO DO EMAIL DE PEDIDO DE DADOS */}
+                      <button onClick={() => enviarBoasVindas(emp)} className="btn-hover" style={{ width: '100%', padding: '10px', marginTop: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
+                        <Mail size={16}/> Enviar Pedido de NIF e Logo
+                      </button>
                     </div>
                   </div>
                 )}
 
                 <input type="text" placeholder="Notas/Observações..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', marginBottom: '10px', background: '#f8fafc' }} />
 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => abrirEditor(emp)} className="btn-hover" style={{ padding: '10px', background: '#e0f2fe', color: '#0369a1', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Pencil size={14}/> Editar</button>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {emp.status !== 'Aceitou' && (
-                    <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ flex: 1, padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Send size={14}/> Enviar Proposta</button>
+                    <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ flex: 1, padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Send size={14}/> Email Proposta</button>
                   )}
+                  
+                  {/* BOTÃO MÁGICO DO WHATSAPP (SÓ APARECE SE TIVER TELEFONE) */}
+                  {emp.status === 'Pendente' && emp.telefone && (
+                    <a href={getWhatsAppLink(emp)} target="_blank" className="btn-hover" style={{ flex: 1, padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
+                      <MessageCircle size={14}/> WhatsApp
+                    </a>
+                  )}
+
                   <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px' }}><Trash2 size={16}/></button>
                 </div>
               </div>
@@ -412,7 +416,6 @@ export default function App() {
                         {emp.proposta_enviada_em && <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '5px' }}>✓ Proposta Enviada</div>}
                       </td>
                       <td style={{ padding: '15px' }}>
-                        {/* ZONA DO RECIBO E CHECKLIST - SÓ APARECE SE "ACEITOU" */}
                         {emp.status === 'Aceitou' ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
@@ -423,14 +426,18 @@ export default function App() {
                             <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}>
                               <input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> 1. Recibo Emitido
                             </label>
-                            
                             <label className="task-checkbox" style={{ color: emp.logo_recebido ? '#10b981' : '#64748b' }}>
                               <input type="checkbox" checked={emp.logo_recebido} onChange={(e) => updateCampo(emp.id, 'logo_recebido', e.target.checked)} /> 2. Logo Recebido
                             </label>
-                            
                             <label className="task-checkbox" style={{ color: emp.redes_sociais ? '#10b981' : '#64748b' }}>
                               <input type="checkbox" checked={emp.redes_sociais} onChange={(e) => updateCampo(emp.id, 'redes_sociais', e.target.checked)} /> 3. Post nas Redes
                             </label>
+
+                            {/* BOTÃO MÁGICO NO PC */}
+                            <button onClick={() => enviarBoasVindas(emp)} className="btn-hover" style={{ padding: '8px', marginTop: '5px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', cursor: 'pointer', fontSize: '11px' }}>
+                              <Mail size={14}/> Pedir NIF & Logo
+                            </button>
+
                           </div>
                         ) : <span style={{color: '#cbd5e1'}}>-</span>}
                       </td>
@@ -444,9 +451,16 @@ export default function App() {
                         <textarea placeholder="Notas..." value={emp.notas || ''} onChange={(e) => updateCampo(emp.id, 'notas', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '60px', fontSize: '12px', background: '#f8fafc', resize: 'vertical' }}></textarea>
                       </td>
                       <td style={{ padding: '15px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                          <button onClick={() => abrirEditor(emp)} className="btn-hover" style={{ padding: '10px', background: '#e0f2fe', color: '#0369a1', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Editar Patrocinador"><Pencil size={16}/></button>
-                          {emp.status !== 'Aceitou' && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email"><Send size={16}/></button>}
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                          {emp.status !== 'Aceitou' && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email da Proposta"><Send size={16}/></button>}
+                          
+                          {/* BOTÃO DO WHATSAPP NO PC */}
+                          {emp.status === 'Pendente' && emp.telefone && (
+                            <a href={getWhatsAppLink(emp)} target="_blank" className="btn-hover" style={{ padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar WhatsApp de Follow-Up">
+                              <MessageCircle size={16}/>
+                            </a>
+                          )}
+
                           <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Trash2 size={16}/></button>
                         </div>
                       </td>
@@ -482,7 +496,6 @@ export default function App() {
               <div style={{ fontSize: '13px', color: '#94a3b8' }}>{empresas.length > 0 ? ((totalAceites / empresas.length) * 100).toFixed(0) : 0}% de taxa de fecho</div>
             </div>
 
-            {/* CARTÃO VERMELHO DOS RECIBOS/LOGOS */}
             <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${tarefasPendentes > 0 ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
               <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Tarefas (Recibos e Logos)</div>
               <div style={{ fontSize: '38px', fontWeight: '900', color: tarefasPendentes > 0 ? '#ef4444' : '#10b981', margin: '5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -542,7 +555,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* SECÇÃO DO HISTÓRICO DE ENVIOS */}
           <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
             <h3 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #f1f5f9', paddingBottom: '15px' }}>
               <Clock size={22} color={PRIMARY_COLOR}/> Histórico de Atualizações Enviadas
@@ -577,27 +589,6 @@ export default function App() {
             )}
           </div>
           
-        </div>
-      )}
-
-      {mostrarEditar && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '15px' }}>
-          <form onSubmit={guardarEdicao} style={{ width: '100%', maxWidth: '500px', background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 18px 40px rgba(0,0,0,0.25)' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '14px' }}>Editar patrocinador</h3>
-            <div style={{ display: 'grid', gap: '10px' }}>
-              <input type="text" value={edicao.nome} onChange={(e) => setEdicao({ ...edicao, nome: e.target.value })} placeholder="Nome empresa/contacto" required style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-              <input type="email" value={edicao.email} onChange={(e) => setEdicao({ ...edicao, email: e.target.value })} placeholder="Email" required style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-              <input type="text" value={edicao.telefone} onChange={(e) => setEdicao({ ...edicao, telefone: e.target.value })} placeholder="Telefone" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-              <select value={edicao.idioma} onChange={(e) => setEdicao({ ...edicao, idioma: e.target.value })} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                <option value="PT">🇵🇹 Português</option>
-                <option value="ES">🇪🇸 Español</option>
-              </select>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
-              <button type="button" onClick={() => setMostrarEditar(false)} style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>Cancelar</button>
-              <button type="submit" className="btn-hover" style={{ padding: '10px 12px', borderRadius: '8px', border: 'none', background: TEXT_PRIMARY, color: PRIMARY_COLOR, fontWeight: 'bold', cursor: 'pointer' }}>Guardar</button>
-            </div>
-          </form>
         </div>
       )}
     </div>
