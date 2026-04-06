@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, MessageCircle, Mail, Edit } from 'lucide-react';
+import { BarChart3, Users, ImageIcon, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, CheckSquare, Square, Phone, Clock, FileText, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [empresas, setEmpresas] = useState([]);
@@ -149,44 +149,22 @@ export default function App() {
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
-  // --- WHATSAPP DA PROPOSTA (AGORA COM PT E ES AUTOMÁTICO) ---
   function getWhatsAppPropostaLink(empresa) {
     let numero = empresa.telefone ? empresa.telefone.replace(/\D/g, '') : '';
-    
-    // Auto-detecta o indicativo pelo idioma se tiver 9 números
-    if (numero.length === 9) {
-      numero = empresa.idioma === 'ES' ? '34' + numero : '351' + numero;
-    }
-    
+    if (numero.length === 9) numero = empresa.idioma === 'ES' ? '34' + numero : '351' + numero;
     const linkDossier = "https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf";
-    let msg = "";
-
-    if (empresa.idioma === 'ES') {
-      msg = `¡Hola! Soy Hugo, padre de la atleta Matilde Mota (Flash Li Dance School).\n\nEstamos buscando socios para apoyar a nuestro equipo rumbo al Campeonato Mundial de Danza (DWCup 2026) en Dublín. 🇮🇪\n\nLe dejo aquí nuestro dossier con la historia de Matilde y las propuestas de visibilidad para *${empresa.nome}*:\n📄 ${linkDossier}\n\n¡Me gustaría mucho saber su opinión! Muchas gracias.`;
-    } else {
-      msg = `Olá! Sou o Hugo, pai da atleta Matilde Mota (Flash Li Dance School).\n\nEstamos à procura de parceiros para apoiar a nossa equipa rumo ao Campeonato do Mundo de Dança (DWCup 2026) em Dublin. 🇮🇪\n\nDeixo aqui o nosso dossier com a história da Matilde e as propostas de visibilidade para a *${empresa.nome}*:\n📄 ${linkDossier}\n\nGostaria muito de saber a vossa opinião! Muito obrigado.`;
-    }
-
+    let msg = empresa.idioma === 'ES' 
+      ? `¡Hola! Soy Hugo, padre de la atleta Matilde Mota (Flash Li Dance School).\n\nEstamos buscando socios para apoyar a nuestro equipo rumbo al Campeonato Mundial de Danza (DWCup 2026) en Dublín. 🇮🇪\n\nLe dejo aquí nuestro dossier con la historia de Matilde y las propuestas de visibilidad para *${empresa.nome}*:\n📄 ${linkDossier}\n\n¡Me gustaría mucho saber su opinión! Muchas gracias.`
+      : `Olá! Sou o Hugo, pai da atleta Matilde Mota (Flash Li Dance School).\n\nEstamos à procura de parceiros para apoiar a nossa equipa rumo ao Campeonato do Mundo de Dança (DWCup 2026) em Dublin. 🇮🇪\n\nDeixo aqui o nosso dossier com a história da Matilde e as propostas de visibilidade para a *${empresa.nome}*:\n📄 ${linkDossier}\n\nGostaria muito de saber a vossa opinião! Muito obrigado.`;
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   }
 
-  // --- WHATSAPP DE FOLLOW-UP (AGORA COM PT E ES AUTOMÁTICO) ---
   function getWhatsAppFollowUpLink(empresa) {
     let numero = empresa.telefone ? empresa.telefone.replace(/\D/g, '') : '';
-    
-    // Auto-detecta o indicativo
-    if (numero.length === 9) {
-      numero = empresa.idioma === 'ES' ? '34' + numero : '351' + numero;
-    }
-    
-    let msg = "";
-
-    if (empresa.idioma === 'ES') {
-      msg = `¡Hola! Soy Hugo, de Flash Li Dance School.\n\nRecientemente nos pusimos en contacto con *${empresa.nome}* para una colaboración rumbo a Dublín 🇮🇪.\n\nMe gustaría saber si tuvieron la oportunidad de analizar nuestro dossier o si necesitan alguna información adicional.\n\n¡Muchas gracias por su tiempo!`;
-    } else {
-      msg = `Olá! Sou o Hugo, da Flash Li Dance School.\n\nEntrámos recentemente em contacto com a *${empresa.nome}* para uma parceria rumo a Dublin 🇮🇪.\n\nGostava apenas de saber se tiveram oportunidade de analisar o nosso dossier ou se precisam de alguma informação adicional da minha parte.\n\nMuito obrigado pelo vosso tempo!`;
-    }
-
+    if (numero.length === 9) numero = empresa.idioma === 'ES' ? '34' + numero : '351' + numero;
+    let msg = empresa.idioma === 'ES'
+      ? `¡Hola! Soy Hugo, de Flash Li Dance School.\n\nRecientemente nos pusimos en contacto con *${empresa.nome}* para una colaboración rumbo a Dublín 🇮🇪.\n\nMe gustaría saber si tuvieron la oportunidad de analizar nuestro dossier o si necesitan alguna información adicional.\n\n¡Muchas gracias por su tiempo!`
+      : `Olá! Sou o Hugo, da Flash Li Dance School.\n\nEntrámos recentemente em contacto com a *${empresa.nome}* para uma parceria rumo a Dublin 🇮🇪.\n\nGostava apenas de saber se tiveram oportunidade de analisar o nosso dossier ou se precisam de alguma informação adicional da minha parte.\n\nMuito obrigado pelo vosso tempo!`;
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   }
 
@@ -247,9 +225,20 @@ export default function App() {
 
   const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
   const totalAceites = empresas.filter(e => e.status === 'Aceitou').length;
-  const tarefasPendentes = empresas.filter(e => e.status === 'Aceitou' && (!e.recibo_enviado || !e.logo_recebido || !e.redes_sociais)).length;
+  const tarefasPendentes = empresas.filter(e => e.status === 'Aceitou' && (!e.recibo_enviado || !e.logo_recebido || !e.redes_sociais));
   const hoje = new Date().toISOString().split('T')[0];
-  const followupsAtrasados = empresas.filter(e => (e.status === 'Pendente' || e.status === 'Em Análise') && e.data_followup && e.data_followup <= hoje).length;
+  const urgentesFollowup = empresas.filter(e => (e.status === 'Pendente' || e.status === 'Em Análise') && e.data_followup && e.data_followup <= hoje);
+  
+  // DADOS DO DASHBOARD AVANÇADO
+  const valorMedio = totalAceites > 0 ? (angariado / totalAceites).toFixed(0) : 0;
+  const countPendentes = empresas.filter(e => e.status === 'Pendente').length;
+  const countAnalise = empresas.filter(e => e.status === 'Em Análise').length;
+  const countRecusados = empresas.filter(e => e.status === 'Recusou').length;
+  
+  const countDiamante = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) >= 300).length;
+  const countOuro = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) >= 150 && Number(e.valor) < 300).length;
+  const countPrata = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) >= 50 && Number(e.valor) < 150).length;
+  const countApoiante = empresas.filter(e => e.status === 'Aceitou' && Number(e.valor) > 0 && Number(e.valor) < 50).length;
 
   function getEscalao(valor) {
     const v = Number(valor);
@@ -261,10 +250,10 @@ export default function App() {
   }
 
   function getStatusColor(status) {
-    if (status === 'Aceitou') return '#dcfce7'; // Verde
-    if (status === 'Pendente') return '#fef9c3'; // Amarelo
-    if (status === 'Em Análise') return '#ffedd5'; // Laranja
-    return '#fee2e2'; // Vermelho (Recusou)
+    if (status === 'Aceitou') return '#dcfce7'; 
+    if (status === 'Pendente') return '#fef9c3'; 
+    if (status === 'Em Análise') return '#ffedd5'; 
+    return '#fee2e2'; 
   }
 
   let empresasFiltradas = empresas.filter(emp => emp.nome.toLowerCase().includes(searchTerm.toLowerCase()) || (emp.email && emp.email.toLowerCase().includes(searchTerm.toLowerCase())));
@@ -283,6 +272,7 @@ export default function App() {
         .task-checkbox { display: flex; alignItems: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 6px 0; font-weight: 500;}
         .task-checkbox input { cursor: pointer; transform: scale(1.2); }
         .task-checkbox:hover { opacity: 0.8; }
+        .dash-box { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; }
         
         @media (min-width: 768px) {
           .responsive-grid { grid-template-columns: repeat(3, 1fr); }
@@ -307,7 +297,7 @@ export default function App() {
           <button onClick={() => setTab('crm')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'crm' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'crm' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><Users size={18}/> Pipeline CRM</button>
           <button onClick={() => setTab('reports')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'reports' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'reports' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>
             <BarChart3 size={18}/> Dashboards 
-            {(followupsAtrasados > 0 || tarefasPendentes > 0) && <span style={{background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '11px'}}>{followupsAtrasados + tarefasPendentes}</span>}
+            {(urgentesFollowup.length > 0 || tarefasPendentes.length > 0) && <span style={{background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '11px'}}>{urgentesFollowup.length + tarefasPendentes.length}</span>}
           </button>
           <button onClick={() => setTab('broadcast')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: tab === 'broadcast' ? TEXT_PRIMARY : '#f1f5f9', color: tab === 'broadcast' ? PRIMARY_COLOR : '#475569', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}><ImageIcon size={18}/> Diário de Bordo</button>
         </div>
@@ -506,37 +496,162 @@ export default function App() {
         </div>
       )}
 
-      {/* === ABA: RELATÓRIOS E ANALÍTICA === */}
+      {/* === ABA: DASHBOARD E RELATÓRIOS AVANÇADOS === */}
       {tab === 'reports' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
-            <button onClick={exportToCSV} className="btn-hover" style={{ padding: '10px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Download size={16}/> Exportar Ficheiro Excel (.csv)</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+          
+          {/* CABEÇALHO DO DASHBOARD E EXPORTAÇÃO */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: TEXT_PRIMARY }}><BarChart3 size={24} color={PRIMARY_COLOR}/> Resumo Financeiro & Operacional</h2>
+            <button onClick={exportToCSV} className="btn-hover" style={{ padding: '10px 20px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }}><Download size={16}/> Exportar Excel</button>
           </div>
           
+          {/* LINHA 1: MÉTRICAS FINANCEIRAS */}
           <div className="responsive-grid">
-            <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${PRIMARY_COLOR}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Fundo Angariado</div>
+            <div className="dash-box" style={{ borderLeft: `5px solid ${PRIMARY_COLOR}` }}>
+              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}><Target size={16}/> Fundo Angariado</div>
               <div style={{ fontSize: '38px', fontWeight: '900', color: TEXT_PRIMARY, margin: '5px 0' }}>{angariado}€</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Objetivo: {OBJETIVO}€</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8', display: 'flex', justifyContent: 'space-between' }}>
+                <span>De um total de {OBJETIVO}€</span>
+                <strong>{((angariado/OBJETIVO)*100).toFixed(0)}%</strong>
+              </div>
               <div style={{ background: '#e2e8f0', height: '8px', borderRadius: '4px', marginTop: '10px', overflow: 'hidden' }}>
                 <div style={{ width: `${Math.min((angariado/OBJETIVO)*100, 100)}%`, background: PRIMARY_COLOR, height: '100%' }}></div>
               </div>
             </div>
 
-            <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: '5px solid #3b82f6', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Parceiros / Conversão</div>
-              <div style={{ fontSize: '38px', fontWeight: '900', color: '#3b82f6', margin: '5px 0' }}>{totalAceites}</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>{empresas.length > 0 ? ((totalAceites / empresas.length) * 100).toFixed(0) : 0}% de taxa de fecho</div>
+            <div className="dash-box" style={{ borderLeft: '5px solid #3b82f6' }}>
+              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}><TrendingUp size={16}/> Ticket Médio</div>
+              <div style={{ fontSize: '38px', fontWeight: '900', color: '#3b82f6', margin: '5px 0' }}>{valorMedio}€</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Valor médio recebido por patrocinador</div>
             </div>
 
-            <div style={{ background: 'white', padding: '25px', borderRadius: '16px', borderLeft: `5px solid ${tarefasPendentes > 0 ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Tarefas (Recibos e Logos)</div>
-              <div style={{ fontSize: '38px', fontWeight: '900', color: tarefasPendentes > 0 ? '#ef4444' : '#10b981', margin: '5px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {tarefasPendentes} {tarefasPendentes > 0 ? <AlertTriangle size={30}/> : <CheckCircle size={30}/>}
-              </div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Parceiros com tarefas de fecho pendentes</div>
+            <div className="dash-box" style={{ borderLeft: '5px solid #10b981' }}>
+              <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}><Users size={16}/> Taxa de Sucesso</div>
+              <div style={{ fontSize: '38px', fontWeight: '900', color: '#10b981', margin: '5px 0' }}>{empresas.length > 0 ? ((totalAceites / empresas.length) * 100).toFixed(0) : 0}%</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>{totalAceites} parceiros fechados em {empresas.length} contactos</div>
             </div>
           </div>
+
+          {/* LINHA 2: FUNIL DE VENDAS E ESCALÕES */}
+          <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+            
+            {/* FUNIL */}
+            <div className="dash-box">
+              <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Filter size={18} color="#64748b"/> Funil de Negociação</h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#64748b'}}>⏳ Pendentes / Frios</span> <span>{countPendentes}</span></div>
+                  <div style={{ background: '#e2e8f0', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(countPendentes/empresas.length)*100 || 0}%`, background: '#cbd5e1', height: '100%' }}></div></div>
+                </div>
+                
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#f59e0b'}}>🤔 Em Análise / Quentes</span> <span>{countAnalise}</span></div>
+                  <div style={{ background: '#fef3c7', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(countAnalise/empresas.length)*100 || 0}%`, background: '#f59e0b', height: '100%' }}></div></div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#10b981'}}>✅ Fechados (Aceites)</span> <span>{totalAceites}</span></div>
+                  <div style={{ background: '#dcfce7', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(totalAceites/empresas.length)*100 || 0}%`, background: '#10b981', height: '100%' }}></div></div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold' }}><span style={{color: '#ef4444'}}>❌ Recusados</span> <span>{countRecusados}</span></div>
+                  <div style={{ background: '#fee2e2', height: '10px', borderRadius: '5px', overflow: 'hidden' }}><div style={{ width: `${(countRecusados/empresas.length)*100 || 0}%`, background: '#ef4444', height: '100%' }}></div></div>
+                </div>
+              </div>
+            </div>
+
+            {/* QUADRO DE HONRA / ESCALÕES */}
+            <div className="dash-box">
+              <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Award size={18} color={PRIMARY_COLOR}/> Quadro de Medalhas (Fechados)</h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '24px', marginBottom: '5px' }}>💎</div>
+                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#3b82f6' }}>{countDiamante}</div>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>DIAMANTE</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>+300€</div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '24px', marginBottom: '5px' }}>🥇</div>
+                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#eab308' }}>{countOuro}</div>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>OURO</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>150€ a 299€</div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '24px', marginBottom: '5px' }}>🥈</div>
+                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#94a3b8' }}>{countPrata}</div>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>PRATA</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>50€ a 149€</div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '24px', marginBottom: '5px' }}>🥉</div>
+                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#b45309' }}>{countApoiante}</div>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>APOIANTE</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>Até 49€</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* LINHA 3: ALERTAS DE AÇÃO (Follow-ups e Tarefas) */}
+          <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+            
+            <div className="dash-box" style={{ border: urgentesFollowup.length > 0 ? '2px solid #ef4444' : '1px solid #e2e8f0' }}>
+              <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: urgentesFollowup.length > 0 ? '#ef4444' : TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Phone size={18}/> Ligar Hoje / Atrasados ({urgentesFollowup.length})
+              </h3>
+              
+              {urgentesFollowup.length === 0 ? (
+                <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Nenhum contacto agendado para hoje. 🎉</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {urgentesFollowup.map(emp => (
+                    <div key={emp.id} style={{ padding: '10px', background: '#fee2e2', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: '#991b1b', fontSize: '14px' }}>{emp.nome}</div>
+                        <div style={{ fontSize: '11px', color: '#ef4444' }}>Agendado para: {new Date(emp.data_followup).toLocaleDateString('pt-PT')}</div>
+                      </div>
+                      <a href={getWhatsAppFollowUpLink(emp)} target="_blank" style={{ padding: '6px 10px', background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <MessageCircle size={14}/> Falar
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="dash-box" style={{ border: tarefasPendentes.length > 0 ? '2px solid #f59e0b' : '1px solid #e2e8f0' }}>
+              <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: tarefasPendentes.length > 0 ? '#f59e0b' : TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={18}/> Tarefas e Entregáveis Pendentes ({tarefasPendentes.length})
+              </h3>
+              
+              {tarefasPendentes.length === 0 ? (
+                <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Todos os parceiros têm as tarefas em dia. ✅</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {tarefasPendentes.map(emp => (
+                    <div key={emp.id} style={{ padding: '10px', background: '#fef3c7', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontWeight: 'bold', color: '#b45309', fontSize: '14px' }}>{emp.nome}</div>
+                      <div style={{ display: 'flex', gap: '5px' }}>
+                        {!emp.recibo_enviado && <span style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #fcd34d' }}>S/ Recibo</span>}
+                        {!emp.logo_recebido && <span style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #fcd34d' }}>S/ Logo</span>}
+                        {!emp.redes_sociais && <span style={{ background: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #fcd34d' }}>S/ Post</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+
         </div>
       )}
 
