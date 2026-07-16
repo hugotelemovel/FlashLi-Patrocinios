@@ -1,5 +1,23 @@
 import nodemailer from 'nodemailer';
 
+// Escape HTML para evitar XSS nos emails
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Valida URL: só http/https permitidos
+function safeUrl(url) {
+  try {
+    const u = new URL(String(url || ''));
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? url : '#';
+  } catch { return '#'; }
+}
+
 export async function POST(request) {
   const {
     assunto, mensagem,
@@ -29,7 +47,6 @@ export async function POST(request) {
     return new Response(JSON.stringify({ error: `Falha SMTP: ${smtpErr.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Configuração visual por tipo
   const tipoConfig = {
     novidade:      { icon: '🗞️', label: 'Novidade',      cor: '#3b82f6', bg: '#eff6ff', intro: 'Temos novidades para partilhar convosco!' },
     resultado:     { icon: '🏆', label: 'Resultado',      cor: '#eab308', bg: '#fefce8', intro: 'Temos o prazer de partilhar os resultados mais recentes!' },
@@ -38,28 +55,32 @@ export async function POST(request) {
   };
   const tc = tipoConfig[tipoCampanha] || tipoConfig.novidade;
 
-  // Preparar fotos inline (fetch manual para serverless)
+  // Download fotos com timeout de 8s cada (PERF fix)
   const todasFotos = [fotoUrl, ...fotosExtras].filter(Boolean);
   let attachments = [];
   let fotosHtml = '';
 
   for (let i = 0; i < todasFotos.length; i++) {
-    const url = todasFotos[i].trim();
-    if (!url) continue;
+    const url = safeUrl(todasFotos[i]?.trim());
+    if (!url || url === '#') continue;
     try {
-      const res = await fetch(url);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000); // timeout 8s
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
       if (res.ok) {
         const buf = Buffer.from(await res.arrayBuffer());
-        const ext = (url.split('.').pop().split('?')[0] || 'jpg').toLowerCase();
+        const ext = (url.split('.').pop().split('?')[0] || 'jpg').toLowerCase().replace(/[^a-z]/g, '') || 'jpg';
         const mime = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
         const cid = `foto_flashli_${i}`;
         attachments.push({ filename: `foto-${i+1}.${ext}`, content: buf, contentType: mime, cid });
         fotosHtml += `<img src="cid:${cid}" style="max-width:100%;border-radius:8px;margin-bottom:6px;display:block;" alt="Fotografia Flash Li" />`;
       } else {
-        fotosHtml += `<img src="${url}" style="max-width:100%;border-radius:8px;margin-bottom:6px;display:block;" alt="Fotografia Flash Li" />`;
+        fotosHtml += `<img src="${esc(url)}" style="max-width:100%;border-radius:8px;margin-bottom:6px;display:block;" alt="Fotografia Flash Li" />`;
       }
     } catch {
-      fotosHtml += `<img src="${url}" style="max-width:100%;border-radius:8px;margin-bottom:6px;display:block;" alt="Fotografia Flash Li" />`;
+      // timeout ou erro de rede — usa link direto como fallback
+      fotosHtml += `<img src="${esc(url)}" style="max-width:100%;border-radius:8px;margin-bottom:6px;display:block;" alt="Fotografia Flash Li" />`;
     }
   }
 
@@ -69,31 +90,31 @@ export async function POST(request) {
       ${fotosHtml}
     </div>` : '';
 
-  // Secção de vídeos
+  // Vídeos — URLs validadas
   const videosSection = videos.length > 0 ? `
     <div style="margin:20px 0;">
       <div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">🎬 Vídeos</div>
       ${videos.map(v => `
-        <a href="${v.url}" style="display:flex;align-items:center;gap:14px;background:#f5f3ff;padding:14px 16px;border-radius:10px;text-decoration:none;border:1px solid #e9d5ff;margin-bottom:8px;">
-          <span style="font-size:24px;">${v.tipo?.icon || '▶️'}</span>
+        <a href="${safeUrl(v.url)}" style="display:flex;align-items:center;gap:14px;background:#f5f3ff;padding:14px 16px;border-radius:10px;text-decoration:none;border:1px solid #e9d5ff;margin-bottom:8px;">
+          <span style="font-size:24px;">${esc(v.tipo?.icon || '▶️')}</span>
           <div style="flex:1;">
-            <div style="font-weight:bold;color:#7c3aed;font-size:14px;">${v.descricao || 'Ver vídeo'}</div>
-            <div style="font-size:11px;color:#a78bfa;">${v.tipo?.nome || 'Vídeo'} · Clica para ver</div>
+            <div style="font-weight:bold;color:#7c3aed;font-size:14px;">${esc(v.descricao || 'Ver vídeo')}</div>
+            <div style="font-size:11px;color:#a78bfa;">${esc(v.tipo?.nome || 'Vídeo')} · Clica para ver</div>
           </div>
           <span style="background:#7c3aed;color:white;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:bold;flex-shrink:0;">▶ Ver</span>
         </a>`).join('')}
     </div>` : '';
 
-  // Secção de redes sociais
+  // Links RS — URLs validadas
   const rsSection = linksRS.length > 0 ? `
     <div style="margin:20px 0;">
       <div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📱 Flash Li nas Redes Sociais</div>
       ${linksRS.map(rs => `
-        <a href="${rs.url}" style="display:flex;align-items:center;gap:14px;background:#fdf4ff;padding:14px 16px;border-radius:10px;text-decoration:none;border:1px solid #f0abfc;margin-bottom:8px;">
-          <span style="font-size:24px;">${rs.tipo?.icon || '🔗'}</span>
+        <a href="${safeUrl(rs.url)}" style="display:flex;align-items:center;gap:14px;background:#fdf4ff;padding:14px 16px;border-radius:10px;text-decoration:none;border:1px solid #f0abfc;margin-bottom:8px;">
+          <span style="font-size:24px;">${esc(rs.tipo?.icon || '🔗')}</span>
           <div style="flex:1;">
-            <div style="font-weight:bold;color:#a21caf;font-size:14px;">${rs.descricao || rs.tipo?.nome || 'Ver post'}</div>
-            <div style="font-size:11px;color:#c026d3;">${rs.tipo?.nome || 'Redes Sociais'} · Clica para ver</div>
+            <div style="font-weight:bold;color:#a21caf;font-size:14px;">${esc(rs.descricao || rs.tipo?.nome || 'Ver post')}</div>
+            <div style="font-size:11px;color:#c026d3;">${esc(rs.tipo?.nome || 'Redes Sociais')} · Clica para ver</div>
           </div>
           <span style="background:#a21caf;color:white;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:bold;flex-shrink:0;">Ver Post</span>
         </a>`).join('')}
@@ -106,44 +127,34 @@ export async function POST(request) {
       await transporter.sendMail({
         from: `"Flash Li Dance School" <${process.env.EMAIL_USER}>`,
         to: empresa.email,
-        subject: assunto,
+        subject: esc(assunto),
         html: `
 <!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
 <div style="max-width:600px;margin:30px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
 
-  <!-- HEADER -->
   <div style="background:#1a1a1a;padding:26px 28px;text-align:center;border-bottom:4px solid #d4af37;">
     <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">Flash Li Dance School</div>
     <div style="color:white;font-weight:900;font-size:20px;letter-spacing:0.5px;">Diário de Bordo 🇮🇪</div>
     <div style="color:#d4af37;font-size:12px;margin-top:4px;">Dublin 2026 — DWCup</div>
   </div>
 
-  <!-- BADGE TIPO -->
   <div style="background:${tc.bg};padding:9px 28px;border-bottom:1px solid ${tc.cor}33;">
     <span style="font-size:13px;font-weight:bold;color:${tc.cor};">${tc.icon} ${tc.label}</span>
   </div>
 
-  <!-- CORPO -->
   <div style="padding:28px;">
-    <h2 style="color:#1a1a1a;font-size:19px;margin:0 0 16px 0;line-height:1.35;font-weight:900;">${assunto}</h2>
-    <p style="color:#475569;font-size:15px;margin:0 0 6px 0;">Estimado(a) parceiro(a) da <strong>${empresa.nome}</strong>,</p>
+    <h2 style="color:#1a1a1a;font-size:19px;margin:0 0 16px 0;line-height:1.35;font-weight:900;">${esc(assunto)}</h2>
+    <p style="color:#475569;font-size:15px;margin:0 0 6px 0;">Estimado(a) parceiro(a) da <strong>${esc(empresa.nome)}</strong>,</p>
     <p style="color:#64748b;font-size:13px;margin:0 0 20px 0;">${tc.intro}</p>
 
-    <!-- MENSAGEM -->
-    <div style="background:#f8fafc;border-left:4px solid #d4af37;padding:18px 20px;border-radius:0 10px 10px 0;font-size:15px;line-height:1.7;white-space:pre-wrap;color:#1a1a1a;margin-bottom:20px;">${mensagem}</div>
+    <div style="background:#f8fafc;border-left:4px solid #d4af37;padding:18px 20px;border-radius:0 10px 10px 0;font-size:15px;line-height:1.7;white-space:pre-wrap;color:#1a1a1a;margin-bottom:20px;">${esc(mensagem)}</div>
 
-    <!-- FOTOS -->
     ${fotosSection}
-
-    <!-- VÍDEOS -->
     ${videosSection}
-
-    <!-- REDES SOCIAIS -->
     ${rsSection}
 
-    <!-- BARRA DE PROGRESSO -->
     <div style="background:#f8fafc;border-radius:12px;padding:18px 20px;margin:22px 0 18px 0;border:1px solid #e2e8f0;">
       <div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📊 A nossa jornada para Dublin</div>
       <div style="background:#e2e8f0;border-radius:999px;height:10px;overflow:hidden;margin-bottom:8px;">
@@ -152,7 +163,6 @@ export async function POST(request) {
       <div style="font-size:12px;color:#64748b;margin-top:6px;">${totalAngariado.toLocaleString("pt-PT")}€ angariados de ${metaObjetivo.toLocaleString("pt-PT")}€ · ${totalParceiros} parceiro(s) a bordo</div>
     </div>
 
-    <!-- ASSINATURA -->
     <div style="border-top:1px solid #e2e8f0;padding-top:18px;">
       <p style="color:#64748b;font-size:13px;margin:0 0 2px 0;">Com os melhores cumprimentos,</p>
       <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:5px 0 2px 0;">Hugo Mota</p>
@@ -160,7 +170,6 @@ export async function POST(request) {
     </div>
   </div>
 
-  <!-- FOOTER -->
   <div style="background:#f8fafc;padding:13px 28px;text-align:center;border-top:1px solid #e2e8f0;">
     <div style="font-size:11px;color:#94a3b8;">Flash Li Dance School • Dublin 2026 🇮🇪 • flash-li-patrocinios.vercel.app</div>
   </div>

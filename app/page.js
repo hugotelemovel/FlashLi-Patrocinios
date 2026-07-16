@@ -32,8 +32,6 @@ export default function App() {
   const [bFoto, setBFoto] = useState('');
   const [bVideo, setBVideo] = useState('');
   const [bDestinatarios, setBDestinatarios] = useState('aceites'); 
-  const [uploadingFoto, setUploadingFoto] = useState(false);
-  const [nomeArquivoTemp, setNomeArquivoTemp] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [resultadoEnvio, setResultadoEnvio] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -103,7 +101,8 @@ export default function App() {
   async function fetchEmpresas() {
     setLoading(true);
     const { data, error } = await supabase.from('patrocinadores').select('*').order('created_at', { ascending: false });
-    if (!error && data) setEmpresas(data);
+    if (error) showMessage('❌ Erro ao carregar dados: ' + error.message, 'error');
+    else if (data) setEmpresas(data);
     setLoading(false);
   }
 
@@ -132,7 +131,8 @@ export default function App() {
 
   async function updateCampo(id, campo, valor) {
     setEmpresas(empresas.map(emp => emp.id === id ? { ...emp, [campo]: valor } : emp));
-    await supabase.from('patrocinadores').update({ [campo]: valor }).eq('id', id);
+    const { error } = await supabase.from('patrocinadores').update({ [campo]: valor }).eq('id', id);
+    if (error) { showMessage('❌ Erro ao guardar: ' + error.message, 'error'); fetchEmpresas(); }
   }
 
   function abrirModalEdicao(emp) { setEmpresaEmEdicao({ ...emp }); }
@@ -159,7 +159,8 @@ export default function App() {
   async function eliminarEmpresa(id, nomeEmpresa) {
     if (!window.confirm(`Tens a certeza que queres eliminar permanentemente "${nomeEmpresa}"?`)) return;
     const { error } = await supabase.from('patrocinadores').delete().eq('id', id);
-    if (!error) { setEmpresas(empresas.filter(emp => emp.id !== id)); showMessage(`🗑️ Eliminada!`, 'success'); }
+    if (error) showMessage('❌ Erro ao eliminar: ' + error.message, 'error');
+    else { setEmpresas(empresas.filter(emp => emp.id !== id)); showMessage('🗑️ Eliminada!', 'success'); }
   }
 
   async function enviarProposta(empresa) {
@@ -223,6 +224,11 @@ export default function App() {
 
   // Templates de campanha por tipo
   function aplicarTemplate(tipo) {
+    if ((bAssunto.trim() || bMensagem.trim()) && tipo !== bTipoCampanha) {
+      if (!window.confirm('Substituir o assunto e a mensagem atuais pelo template?')) {
+        setBTipoCampanha(tipo); return;
+      }
+    }
     setBTipoCampanha(tipo);
     const templates = {
       novidade: { assunto: '🗞️ Novidades do Campeonato — Flash Li Dance School', mensagem: 'Olá!\n\nTemos novidades fresquinhas para partilhar convosco!\n\n[Descreve aqui o que aconteceu: treinos, conquistas, preparativos...]\n\nGraças ao vosso apoio, estamos cada vez mais próximos de Dublin! 🇮🇪\n\nCom os melhores cumprimentos,\nHugo & Matilde Mota' },
@@ -326,12 +332,17 @@ export default function App() {
         const { data: novoHistorico } = await supabase.from('historico_novidades').insert([{
           assunto: bAssunto, mensagem: bMensagem,
           foto_url: primeiraFoto || null,
-          video_url: bVideo || null,
-          total_destinatarios: json.enviados
+          video_url: (bVideos.length > 0 ? bVideos[0].url : bVideo) || null,
+          total_destinatarios: json.total,
+          total_enviados: json.enviados,
+          tipo_campanha: bTipoCampanha,
+          num_fotos: bFotos.length,
+          num_videos: bVideos.length,
+          num_links_rs: bLinksRS.length
         }]).select();
         if (novoHistorico) setHistorico([novoHistorico[0], ...historico]);
 
-        setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo(''); setBFotos([]); setNomeArquivoTemp(''); setBVideos([]); setBLinksRS([]);
+        setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo(''); setBFotos([]); setBVideos([]); setBLinksRS([]);
       } else {
         showMessage(`❌ Erro: ${json.error || 'Erro desconhecido'}`, 'error');
       }
@@ -344,7 +355,8 @@ export default function App() {
 
   function exportToCSV() {
     const headers = ['Nome', 'Email', 'Telefone', 'Idioma', 'Estado', 'Valor (€)', 'Escalão', 'Recibo Emitido', 'Logo Recebido', 'Redes Sociais', 'Data Follow-up', 'Notas'];
-    const rows = empresas.map(emp => [ `"${emp.nome}"`, emp.email || '', emp.telefone || '', emp.idioma, emp.status, emp.valor || 0, getEscalao(emp.valor).nome, emp.recibo_enviado ? 'Sim' : 'Não', emp.logo_recebido ? 'Sim' : 'Não', emp.redes_sociais ? 'Sim' : 'Não', emp.data_followup || '', `"${emp.notas || ''}"` ]);
+    const esc = v => '"' + String(v || '').replace(/"/g, '""') + '"';
+    const rows = empresas.map(emp => [ esc(emp.nome), esc(emp.email || ''), esc(emp.telefone || ''), emp.idioma, emp.status, emp.valor || 0, getEscalao(emp.valor).nome, emp.recibo_enviado ? 'Sim' : 'Não', emp.logo_recebido ? 'Sim' : 'Não', emp.redes_sociais ? 'Sim' : 'Não', emp.data_followup || '', esc(emp.notas || '') ]);
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `FlashLi_CRM_${new Date().toISOString().split('T')[0]}.csv`);
@@ -632,7 +644,7 @@ export default function App() {
                       <td style={{ padding: '15px', borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : '4px solid transparent', width: '25%', verticalAlign: 'top' }}>
                         <div style={{ fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}>{emp.nome} {emp.status === 'Aceitou' && escalao.icon}</div>
                         <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{emp.email || 'S/ Email'} <br/> {emp.telefone}</div>
-                        {emp.notas && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px', fontStyle: 'italic' }}>{emp.notas.substring(0, 50)}...</div>}
+                        {emp.notas && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px', fontStyle: 'italic' }}>{emp.notas.length > 50 ? emp.notas.substring(0, 50) + '…' : emp.notas}</div>}
                       </td>
                       <td style={{ padding: '15px', width: '20%', verticalAlign: 'top' }}>
                         <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', outline: 'none', background: getStatusColor(emp.status), width: '100%' }}>
@@ -644,7 +656,7 @@ export default function App() {
                         {emp.status === 'Aceitou' ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'white', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                              <input type="number" placeholder="€" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '90px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
+                              <input type="number" placeholder="€" defaultValue={emp.valor || ''} onBlur={(e) => { if (e.target.value !== String(emp.valor || '')) updateCampo(emp.id, 'valor', e.target.value); }} key={emp.id + '_valor'} style={{ width: '90px', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold' }} />
                               <span style={{fontSize: '13px', fontWeight: 'bold', color: escalao.cor}}>{escalao.nome}</span>
                             </div>
                             <label className="task-checkbox" style={{ color: emp.recibo_enviado ? '#10b981' : '#ef4444' }}><input type="checkbox" checked={emp.recibo_enviado} onChange={(e) => updateCampo(emp.id, 'recibo_enviado', e.target.checked)} /> Recibo Emitido</label>
