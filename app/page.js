@@ -406,14 +406,18 @@ export default function App() {
     showMessage('A carregar vídeo... (pode demorar)', 'info');
     const fileName = `video_${Math.random().toString(36).substring(2)}_${Date.now()}.${file.name.split('.').pop()}`;
     const { data, error } = await supabase.storage.from('fotos').upload(fileName, file, { contentType: file.type });
-    if (error) { showMessage('❌ Erro no upload do vídeo: ' + error.message, 'error'); }
-    else {
-      const { data: urlData } = supabase.storage.from('fotos').getPublicUrl(fileName);
-      setBVideos(prev => [...prev, { tipo: { icon: '🎬', nome: 'Vídeo' }, url: urlData.publicUrl, descricao: file.name.replace(/\.[^/.]+$/, '') }]);
-      showMessage('🎬 Vídeo pronto!', 'success');
+    try {
+      if (error) {
+        showMessage('❌ Erro no upload do vídeo: ' + error.message, 'error');
+      } else {
+        const { data: urlData } = supabase.storage.from('fotos').getPublicUrl(fileName);
+        setBVideos(prev => [...prev, { tipo: { icon: '🎬', nome: 'Vídeo' }, url: urlData.publicUrl, descricao: file.name.replace(/\.[^/.]+$/, '') }]);
+        showMessage('🎬 Vídeo pronto!', 'success');
+      }
+    } finally {
+      setUploadingVideo(false);
+      e.target.value = '';
     }
-    setUploadingVideo(false);
-    e.target.value = '';
   }
 
   async function enviarBroadcast() {
@@ -462,7 +466,7 @@ export default function App() {
           projeto_id: projetoAtivo?.id,
           assunto: bAssunto, mensagem: bMensagem,
           foto_url: primeiraFoto || null,
-          video_url: (bVideos.length > 0 ? bVideos[0].url : bVideo) || null,
+          video_url: bVideos.length > 0 ? bVideos[0].url : null,
           total_destinatarios: json.total,
           total_enviados: json.enviados,
           tipo_campanha: bTipoCampanha,
@@ -814,7 +818,7 @@ export default function App() {
         </div>
       </header>
 
-      {msg && <div className="no-print" style={{ background: msgType === 'error' ? '#fee2e2' : '#f0fdf4', color: msgType === 'error' ? '#991b1b' : '#166534', padding: '15px', borderRadius: '10px', marginBottom: '20px', fontWeight: 'bold', border: `1px solid ${msgType === 'error' ? '#f87171' : '#4ade80'}` }}>{msg}</div>}
+      {msg && <div className="no-print" style={{ background: msgType === 'error' ? '#fee2e2' : msgType === 'warning' ? '#fffbeb' : '#f0fdf4', color: msgType === 'error' ? '#991b1b' : msgType === 'warning' ? '#92400e' : '#166534', padding: '15px', borderRadius: '10px', marginBottom: '20px', fontWeight: 'bold', border: `1px solid ${msgType === 'error' ? '#f87171' : msgType === 'warning' ? '#fcd34d' : '#4ade80'}` }}>{msg}</div>}
 
       {/* === ABA 1: PIPELINE CRM === */}
       {tab === 'crm' && (
@@ -887,7 +891,7 @@ export default function App() {
                 {emp.status === 'Aceitou' && (
                   <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '2px dashed #cbd5e1', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
-                      <input type="number" placeholder="Valor €" value={emp.valor || ''} onChange={(e) => updateCampo(emp.id, 'valor', e.target.value)} style={{ width: '100px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '16px' }} />
+                      <input type="number" placeholder="Valor €" value={emp.valor || ''} defaultValue={emp.valor || ''} onBlur={(e) => { if (e.target.value !== String(emp.valor || '')) updateCampo(emp.id, 'valor', e.target.value); }} key={emp.id + '_valor_m'} style={{ width: '100px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '16px' }} />
                       <div style={{ fontSize: '14px', fontWeight: 'bold', color: escalao.cor }}>{escalao.nome}</div>
                     </div>
                     <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
@@ -982,9 +986,9 @@ export default function App() {
               <div style={{ fontSize: '38px', fontWeight: '900', color: TEXT_PRIMARY, margin: '5px 0' }}>{angariado}€</div>
               <div style={{ fontSize: '13px', color: '#94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>Meta: <input type="number" value={objetivo} onChange={(e) => handleMetaChange(e.target.value)} style={{ width: '70px', padding: '2px 5px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f8fafc', fontWeight: 'bold' }}/> €</span>
-                <strong>{((angariado/objetivo)*100 || 0).toFixed(0)}%</strong>
+                <strong>{(objetivo > 0 ? ((angariado/objetivo)*100) : 0).toFixed(0)}%</strong>
               </div>
-              <div style={{ background: '#e2e8f0', height: '8px', borderRadius: '4px', marginTop: '10px', overflow: 'hidden' }}><div style={{ width: `${Math.min((angariado/objetivo)*100, 100)}%`, background: PRIMARY_COLOR, height: '100%' }}></div></div>
+              <div style={{ background: '#e2e8f0', height: '8px', borderRadius: '4px', marginTop: '10px', overflow: 'hidden' }}><div style={{ width: `${objetivo > 0 ? Math.min((angariado/objetivo)*100, 100) : 0}%`, background: PRIMARY_COLOR, height: '100%' }}></div></div>
             </div>
 
             <div className="dash-box" style={{ borderLeft: '5px solid #3b82f6' }}>
@@ -1380,9 +1384,9 @@ export default function App() {
                       <span style={{ fontSize: '12px', color: '#1a1a1a', fontWeight: 'bold' }}>{angariado.toLocaleString('pt-PT')}€ / {objetivo.toLocaleString('pt-PT')}€</span>
                     </div>
                     <div style={{ background: '#e2e8f0', borderRadius: '999px', height: '8px', overflow: 'hidden' }}>
-                      <div style={{ width: `${Math.min((angariado/objetivo)*100, 100)}%`, background: 'linear-gradient(90deg,#d4af37,#f0cc60)', height: '100%', borderRadius: '999px' }}></div>
+                      <div style={{ width: `${objetivo > 0 ? Math.min((angariado/objetivo)*100, 100) : 0}%`, background: 'linear-gradient(90deg,#d4af37,#f0cc60)', height: '100%', borderRadius: '999px' }}></div>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '5px' }}>{((angariado/objetivo)*100).toFixed(0)}% atingido • {totalAceites} parceiro(s) a bordo</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '5px' }}>{(objetivo > 0 ? ((angariado/objetivo)*100).toFixed(0) : 0)}% atingido • {totalAceites} parceiro(s) a bordo</div>
                   </div>
                   <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px', color: '#64748b', fontSize: '13px' }}>
                     Com os melhores cumprimentos,<br/><strong style={{ color: '#1a1a1a' }}>Hugo Mota</strong><br/><span style={{ fontSize: '11px' }}>Gestão de Patrocínios — Flash Li Dance School</span>

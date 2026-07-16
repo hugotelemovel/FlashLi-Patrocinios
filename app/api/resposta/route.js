@@ -35,7 +35,12 @@ export async function GET(request) {
     .select('nome, email')
     .single();
 
-  // BUG 13 — Notificar Hugo quando empresa responde
+  // Se id não existe na BD, empresa será null — resposta visual continua mas sem notificação
+  if (dbError && !empresa) {
+    console.warn('Empresa não encontrada para id:', id, dbError?.message);
+  }
+
+  // Notificar Hugo quando empresa responde (só se empresa existir)
   if (!dbError && empresa && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     try {
       const transporter = nodemailer.createTransport({
