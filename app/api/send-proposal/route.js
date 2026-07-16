@@ -33,8 +33,8 @@ export async function POST(request) {
   const isES = empresa.idioma === 'ES';
 
   const assunto = isES
-    ? `Rumbo al Mundial de Danza 2026 - Propuesta de Patrocinio (${esc(empresa.nome)})`
-    : `Rumo ao Mundial de Dança 2026 - Proposta de Patrocínio (${esc(empresa.nome)})`;
+    ? `Propuesta de Patrocinio — ${evento} ${ano} ${cidade} ${bandeira} (${esc(empresa.nome)})`
+    : `Proposta de Patrocínio — ${evento} ${ano} ${cidade} ${bandeira} (${esc(empresa.nome)})`;
 
   const corpoHTML = `
 <!DOCTYPE html>

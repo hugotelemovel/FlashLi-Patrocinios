@@ -79,8 +79,8 @@ export default function App() {
   // Quando projeto muda, carregar dados e atualizar textos
   useEffect(() => {
     if (!projetoAtivo) return;
-    fetchEmpresas();
-    fetchHistorico();
+    fetchEmpresas(projetoAtivo);
+    fetchHistorico(projetoAtivo);
     setObjetivo(projetoAtivo.meta_objetivo || 3000);
     localStorage.setItem('projetoAtivoId', projetoAtivo.id);
     // Carregar textos WhatsApp guardados para este projeto, ou gerar defaults
@@ -93,14 +93,18 @@ export default function App() {
 
   async function fetchProjetos() {
     const { data, error } = await supabase.from('projetos').select('*').order('ano', { ascending: false });
-    if (!error && data && data.length > 0) {
+    if (error) {
+      showMessage('❌ Erro a carregar projetos: ' + error.message, 'error');
+      setLoading(false);
+      return;
+    }
+    if (data && data.length > 0) {
       setProjetos(data);
-      // Restaurar último projeto selecionado, ou usar o primeiro
       const savedId = localStorage.getItem('projetoAtivoId');
       const saved = savedId ? data.find(p => p.id === savedId) : null;
       setProjetoAtivo(saved || data[0]);
-    } else if (!error && data && data.length === 0) {
-      // Sem projetos ainda — mostrar modal de criação
+      // setLoading(false) é chamado no useEffect de projetoAtivo → fetchEmpresas
+    } else {
       setProjetos([]);
       setProjetoAtivo(null);
       setLoading(false);
@@ -115,17 +119,21 @@ export default function App() {
     dados.nome = dados.nome.trim();
     showMessage('A guardar projeto...', 'info');
     let result;
+    let error, data;
     if (editandoProjeto) {
-      result = await supabase.from('projetos').update(dados).eq('id', editandoProjeto.id).select().single();
+      ({ error, data } = await supabase.from('projetos').update(dados).eq('id', editandoProjeto.id).select());
     } else {
-      result = await supabase.from('projetos').insert([dados]).select().single();
+      ({ error, data } = await supabase.from('projetos').insert([dados]).select());
     }
-    if (result.error) return showMessage('Erro: ' + result.error.message, 'error');
+    if (error) return showMessage('Erro: ' + error.message, 'error');
+    const projetoSalvo = data?.[0];
     showMessage('✅ Projeto guardado!', 'success');
     setShowProjetoModal(false);
     await fetchProjetos();
-    if (!editandoProjeto) setProjetoAtivo(result.data);
-    else if (projetoAtivo?.id === editandoProjeto.id) setProjetoAtivo(result.data);
+    if (projetoSalvo) {
+      if (!editandoProjeto) setProjetoAtivo(projetoSalvo);
+      else if (projetoAtivo?.id === editandoProjeto.id) setProjetoAtivo(projetoSalvo);
+    }
     setEditandoProjeto(null);
   }
 
@@ -134,6 +142,10 @@ export default function App() {
     const { error } = await supabase.from('projetos').delete().eq('id', proj.id);
     if (error) return showMessage('Erro: ' + error.message, 'error');
     showMessage('🗑️ Projeto eliminado.', 'success');
+    // Limpar estado antes de recarregar para evitar flash de dados antigos
+    setEmpresas([]);
+    setHistorico([]);
+    setProjetoAtivo(null);
     await fetchProjetos();
   }
 
@@ -149,11 +161,12 @@ export default function App() {
     setShowProjetoModal(true);
   }
 
-  function handleMetaChange(val) {
+  async function handleMetaChange(val) {
     const num = Number(val) || 0;
     setObjetivo(num);
     if (projetoAtivo) {
-      supabase.from('projetos').update({ meta_objetivo: num }).eq('id', projetoAtivo.id);
+      const { error } = await supabase.from('projetos').update({ meta_objetivo: num }).eq('id', projetoAtivo.id);
+      if (error) showMessage('❌ Erro ao guardar meta: ' + error.message, 'error');
     }
   }
 
@@ -174,28 +187,30 @@ export default function App() {
     setTimeout(() => setMsg(''), 5000);
   }
 
-  async function fetchEmpresas() {
-    if (!projetoAtivo) return;
+  async function fetchEmpresas(proj) {
+    const p = proj || projetoAtivo;
+    if (!p) return;
     setLoading(true);
-    const { data, error } = await supabase.from('patrocinadores').select('*').eq('projeto_id', projetoAtivo.id).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('patrocinadores').select('*').eq('projeto_id', p.id).order('created_at', { ascending: false });
     if (error) showMessage('❌ Erro ao carregar dados: ' + error.message, 'error');
     else if (data) setEmpresas(data);
     setLoading(false);
   }
 
-  async function fetchHistorico() {
-    if (!projetoAtivo) return;
-    const { data, error } = await supabase.from('historico_novidades').select('*').eq('projeto_id', projetoAtivo.id).order('created_at', { ascending: false });
+  async function fetchHistorico(proj) {
+    const p = proj || projetoAtivo;
+    if (!p) return;
+    const { data, error } = await supabase.from('historico_novidades').select('*').eq('projeto_id', p.id).order('created_at', { ascending: false });
     if (!error && data) setHistorico(data);
   }
 
   // --- CRM BASE ---
   async function addEmpresa(e) {
     e.preventDefault();
+    if (!projetoAtivo) return showMessage('Seleciona um projeto primeiro!', 'error');
     if (!nome) return showMessage('O Nome da empresa é obrigatório!', 'error');
     if (!email && !telefone) return showMessage('Tens de colocar ou o Email ou o Telefone!', 'error');
     showMessage('A adicionar parceiro...', 'info');
-    if (!projetoAtivo) return showMessage('Seleciona um projeto primeiro!', 'error');
     const novaEmpresa = { 
       projeto_id: projetoAtivo.id,
       nome, email: email || null, telefone: telefone || null, idioma, status: 'Pendente', data_followup: dataFollowup || null,
@@ -311,10 +326,10 @@ export default function App() {
     }
     setBTipoCampanha(tipo);
     const templates = {
-      novidade: { assunto: '🗞️ Novidades do Campeonato — Flash Li Dance School', mensagem: 'Olá!\n\nTemos novidades fresquinhas para partilhar convosco!\n\n[Descreve aqui o que aconteceu: treinos, conquistas, preparativos...]\n\nGraças ao vosso apoio, estamos cada vez mais próximos de Dublin! 🇮🇪\n\nCom os melhores cumprimentos,\nHugo & Matilde Mota' },
-      resultado: { assunto: '🏆 Resultado da Competição — Flash Li Dance School', mensagem: 'Querido(a) parceiro(a),\n\nTemos o prazer de partilhar os resultados da nossa mais recente competição!\n\n🥇 Classificação: [Posição]\n📍 Evento: [Nome do evento]\n📅 Data: [Data]\n\n[Descreve o momento, as emoções, o que correu bem...]\n\nSem o vosso apoio, nada disto seria possível. Muito obrigado!\n\nHugo & Equipa Flash Li' },
-      agradecimento: { assunto: '💛 Um obrigado especial da Flash Li Dance School', mensagem: 'Caro(a) parceiro(a),\n\nEste email é simplesmente para dizer: OBRIGADO.\n\nO vosso apoio faz uma diferença enorme na vida das nossas atletas. Cada treino, cada viagem, cada sonho — tudo se torna possível graças a pessoas como vocês.\n\n[Adiciona uma mensagem pessoal ou moment especial...]\n\nDo fundo do coração,\nHugo, Matilde e toda a Flash Li Dance School 🩰' },
-      urgente: { assunto: '⚡ Atualização Importante — Dublin 2026 a aproximar-se!', mensagem: 'Parceiro(a) da Flash Li,\n\nFaltam apenas [X dias] para o DWCup 2026 em Dublin! 🇮🇪\n\nNeste momento estamos a [descreve o estado atual da preparação].\n\n[Partilha algo urgente, uma conquista recente, ou um apelo específico...]\n\nO vosso apoio continua a ser fundamental nesta reta final!\n\nCom entusiasmo,\nHugo Mota' },
+      novidade: { assunto: `🗞️ Novidades de ${projetoAtivo?.nome || 'Competição'} — ${projetoAtivo?.escola || 'Flash Li'}`, mensagem: `Olá!\n\nTemos novidades fresquinhas para partilhar convosco sobre a nossa preparação para ${projetoAtivo?.nome || 'a competição'}!\n\n[Descreve aqui o que aconteceu: treinos, conquistas, preparativos...]\n\nGraças ao vosso apoio, estamos cada vez mais próximos de ${projetoAtivo?.cidade || 'lá'}! ${projetoAtivo?.bandeira || '🩰'}\n\nCom os melhores cumprimentos,\n${projetoAtivo?.gestor || 'Hugo'} & Equipa ${projetoAtivo?.escola || 'Flash Li'}` },
+      resultado: { assunto: `🏆 Resultado da Competição — ${projetoAtivo?.escola || 'Flash Li'}`, mensagem: `Querido(a) parceiro(a),\n\nTemos o prazer de partilhar os resultados da nossa mais recente competição!\n\n🥇 Classificação: [Posição]\n📍 Evento: [Nome do evento]\n📅 Data: [Data]\n\n[Descreve o momento, as emoções, o que correu bem...]\n\nSem o vosso apoio, nada disto seria possível. Muito obrigado!\n\n${projetoAtivo?.gestor || 'Hugo'} & Equipa ${projetoAtivo?.escola || 'Flash Li'}` },
+      agradecimento: { assunto: `💛 Um obrigado especial da ${projetoAtivo?.escola || 'Flash Li'}`, mensagem: `Caro(a) parceiro(a),\n\nEste email é simplesmente para dizer: OBRIGADO.\n\nO vosso apoio faz uma diferença enorme na vida das nossas atletas. Cada treino, cada viagem, cada sonho — tudo se torna possível graças a pessoas como vocês.\n\n[Adiciona uma mensagem pessoal ou momento especial...]\n\nDo fundo do coração,\n${projetoAtivo?.gestor || 'Hugo'} e toda a ${projetoAtivo?.escola || 'Flash Li'} 🩰` },
+      urgente: { assunto: `⚡ Atualização Importante — ${projetoAtivo?.nome || 'Competição'} a aproximar-se!`, mensagem: `Caro(a) parceiro(a),\n\nFaltam apenas [X dias] para ${projetoAtivo?.nome || 'a competição'} em ${projetoAtivo?.cidade || 'destino'}! ${projetoAtivo?.bandeira || '🩰'}\n\nNeste momento estamos a [descreve o estado atual da preparação].\n\n[Partilha algo urgente, uma conquista recente, ou um apelo específico...]\n\nO vosso apoio continua a ser fundamental nesta reta final!\n\nCom entusiasmo,\n${projetoAtivo?.gestor || 'Hugo'}` },
     };
     if (templates[tipo]) {
       setBAssunto(templates[tipo].assunto);
@@ -438,10 +453,12 @@ export default function App() {
     const headers = ['Nome', 'Email', 'Telefone', 'Idioma', 'Estado', 'Valor (€)', 'Escalão', 'Recibo Emitido', 'Logo Recebido', 'Redes Sociais', 'Data Follow-up', 'Notas'];
     const esc = v => '"' + String(v || '').replace(/"/g, '""') + '"';
     const rows = empresas.map(emp => [ esc(emp.nome), esc(emp.email || ''), esc(emp.telefone || ''), emp.idioma, emp.status, emp.valor || 0, getEscalao(emp.valor).nome, emp.recibo_enviado ? 'Sim' : 'Não', emp.logo_recebido ? 'Sim' : 'Não', emp.redes_sociais ? 'Sim' : 'Não', emp.data_followup || '', esc(emp.notas || '') ]);
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `FlashLi_CRM_${new Date().toISOString().split('T')[0]}.csv`);
+    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a"); link.setAttribute("href", url); link.setAttribute("download", `${(projetoAtivo?.nome || 'FlashLi').replace(/[^a-zA-Z0-9]/g,'_')}_CRM_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   // --- CÁLCULOS SEGUROS ---
   const angariado = empresas.reduce((acc, curr) => curr.status === 'Aceitou' ? acc + Number(curr.valor || 0) : acc, 0);
@@ -493,7 +510,6 @@ export default function App() {
         <h1 style={{ color: '#1a1a1a', fontSize: '24px', fontWeight: '900', margin: '0 0 10px 0' }}>FlashLi Patrocínios</h1>
         <p style={{ color: '#64748b', marginBottom: '30px' }}>Ainda não tens nenhum projeto. Cria o primeiro para começar!</p>
         <button onClick={abrirNovoProj} style={{ background: '#1a1a1a', color: '#d4af37', padding: '16px 32px', borderRadius: '12px', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>+ Criar Primeiro Projeto</button>
-        {showProjetoModal && <ModalProjeto />}
       </div>
     </div>
   );

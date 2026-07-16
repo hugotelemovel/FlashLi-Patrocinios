@@ -35,7 +35,7 @@ export async function POST(request) {
   const ano = projeto.ano || 2026;
   const cidade = projeto.cidade || "Dublin";
   const bandeira = projeto.bandeira || "🇮🇪";
-  const escola = projeto.escola || "Flash Li Dance School";
+  const escola = projeto.escola || "${escola}";
   const gestor = projeto.gestor || "Hugo";
   const baseUrl = projeto.url_base || "https://flash-li-patrocinios.vercel.app";
 
