@@ -42,6 +42,16 @@ export async function GET(request) {
         service: 'gmail',
         auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
       });
+      // Ir buscar url_base do projeto para o link do CRM
+      let crmUrl = 'https://flash-li-patrocinios.vercel.app';
+      try {
+        const { data: pat } = await supabase.from('patrocinadores').select('projeto_id').eq('id', id).single();
+        if (pat?.projeto_id) {
+          const { data: proj } = await supabase.from('projetos').select('url_base, nome').eq('id', pat.projeto_id).single();
+          if (proj?.url_base) crmUrl = proj.url_base;
+        }
+      } catch (_) {}
+
       await transporter.sendMail({
         from: `"Flash Li CRM" <${process.env.EMAIL_USER}>`,
         to: process.env.EMAIL_USER,
@@ -52,7 +62,7 @@ export async function GET(request) {
             <p><strong>Empresa:</strong> ${empresa.nome}</p>
             <p><strong>Resposta:</strong> ${emoji} ${status}</p>
             <p><strong>Email:</strong> ${empresa.email || '-'}</p>
-            <p style="margin-top:20px;"><a href="https://flash-li-patrocinios.vercel.app" style="background:#1a1a1a;color:#d4af37;padding:10px 20px;text-decoration:none;border-radius:8px;font-weight:bold;">Ver no CRM</a></p>
+            <p style="margin-top:20px;"><a href="${crmUrl}" style="background:#1a1a1a;color:#d4af37;padding:10px 20px;text-decoration:none;border-radius:8px;font-weight:bold;">Ver no CRM</a></p>
           </div>`,
       });
     } catch (e) {

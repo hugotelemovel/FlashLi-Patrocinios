@@ -135,7 +135,6 @@ export default function App() {
     if (!dados.cidade?.trim()) return showMessage('A cidade é obrigatória.', 'error');
     dados.nome = dados.nome.trim();
     showMessage('A guardar projeto...', 'info');
-    let result;
     let error, data;
     if (editandoProjeto) {
       ({ error, data } = await supabase.from('projetos').update(dados).eq('id', editandoProjeto.id).select());
@@ -172,7 +171,7 @@ export default function App() {
 
   function abrirNovoProj() {
     setEditandoProjeto(null);
-    setNovoProj({ nome:'', evento:'DWCup', ano: new Date().getFullYear()+1, cidade:'', pais:'', bandeira:'🏳️', meta_objetivo:3000, atletas:'', escola:'Flash Li Dance School', gestor:'Hugo', gestor_whatsapp:'+351 924 368 517', dossier_url:'', url_base:'https://flash-li-patrocinios.vercel.app' });
+    setNovoProj({ nome:'', evento:'', ano: new Date().getFullYear()+1, cidade:'', pais:'', bandeira:'🏳️', meta_objetivo:3000, atletas:'', escola:'Flash Li Dance School', gestor:'Hugo', gestor_whatsapp:'+351 924 368 517', dossier_url:'', url_base:'https://flash-li-patrocinios.vercel.app' });
     setShowProjetoModal(true);
   }
 
@@ -203,10 +202,10 @@ export default function App() {
     showMessage('✅ Textos do WhatsApp guardados com sucesso!', 'success');
   }
 
-  function showMessage(text, type = 'info') {
+  function showMessage(text, type = 'info', duracao = 5000) {
     setMsg(text);
     setMsgType(type);
-    setTimeout(() => setMsg(''), 5000);
+    if (duracao > 0) setTimeout(() => setMsg(''), duracao);
   }
 
   async function fetchEmpresas(proj) {
@@ -286,8 +285,9 @@ export default function App() {
     showMessage(`A enviar proposta por email para ${empresa.nome}...`, 'info');
     try {
       const res = await fetch('/api/send-proposal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, pais: projetoAtivo?.pais, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, dossier_url: projetoAtivo?.dossier_url, url_base: projetoAtivo?.url_base } }) });
-      if (res.ok) { showMessage(`✅ Email Enviado com sucesso!`, 'success'); updateCampo(empresa.id, 'proposta_enviada_em', new Date().toISOString()); } 
-      else showMessage(`❌ Falha no envio`, 'error');
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) { showMessage(`✅ Email enviado com sucesso!`, 'success'); updateCampo(empresa.id, 'proposta_enviada_em', new Date().toISOString()); }
+      else showMessage(`❌ Falha no envio: ${json.error || res.statusText}`, 'error');
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
@@ -296,14 +296,18 @@ export default function App() {
     showMessage(`A pedir dados e logo a ${empresa.nome}...`, 'info');
     try {
       const res = await fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, url_base: projetoAtivo?.url_base } }) });
-      if (res.ok) showMessage(`✅ Pedido enviado com sucesso!`, 'success'); else showMessage(`❌ Falha no envio do pedido`, 'error');
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) showMessage(`✅ Pedido enviado com sucesso!`, 'success');
+      else showMessage(`❌ Falha no envio: ${json.error || res.statusText}`, 'error');
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
 
   function getWhatsAppPropostaLink(empresa) {
     let numero = empresa.telefone ? String(empresa.telefone).replace(/\D/g, '') : '';
     if (numero.length === 9) numero = empresa.idioma === 'ES' ? '34' + numero : '351' + numero;
-    let baseMsg = empresa.idioma === 'ES' ? msgPropostaES : msgPropostaPT;
+    let baseMsg = empresa.idioma === 'ES'
+      ? (msgPropostaES || getDefaultPropES())
+      : (msgPropostaPT || getDefaultPropPT());
     let finalMsg = baseMsg.replace(/{nome}/g, empresa.nome);
     return `https://wa.me/${numero}?text=${encodeURIComponent(finalMsg)}`;
   }
@@ -311,7 +315,9 @@ export default function App() {
   function getWhatsAppFollowUpLink(empresa) {
     let numero = empresa.telefone ? String(empresa.telefone).replace(/\D/g, '') : '';
     if (numero.length === 9) numero = empresa.idioma === 'ES' ? '34' + numero : '351' + numero;
-    let baseMsg = empresa.idioma === 'ES' ? msgFollowES : msgFollowPT;
+    let baseMsg = empresa.idioma === 'ES'
+      ? (msgFollowES || getDefaultFollES())
+      : (msgFollowPT || getDefaultFollPT());
     let finalMsg = baseMsg.replace(/{nome}/g, empresa.nome);
     return `https://wa.me/${numero}?text=${encodeURIComponent(finalMsg)}`;
   }
@@ -431,7 +437,7 @@ export default function App() {
 
     setEnviando(true);
     setResultadoEnvio(null);
-    showMessage(`📨 A enviar para ${alvosComEmail.length} contacto(s)...`, 'info');
+    showMessage(`📨 A enviar para ${alvosComEmail.length} contacto(s)...`, 'info', 60000);
 
     const fotosUrls = bFotos.map(f => f.url);
     // manter compatibilidade: bFoto = primeira foto para a API antiga
@@ -449,7 +455,8 @@ export default function App() {
       if (res.ok && json.success) {
         const temFalhas = json.falhados && json.falhados.length > 0;
         setResultadoEnvio({ enviados: json.enviados, total: json.total, falhados: json.falhados || [] });
-        showMessage(`✅ ${json.enviados}/${json.total} emails enviados!${temFalhas ? ' (alguns falharam)' : ''}`, temFalhas ? 'warning' : 'success');
+        const avisos = json.avisos && json.avisos.length > 0 ? ' ⚠️ ' + json.avisos.join(', ') : '';
+        showMessage(`✅ ${json.enviados}/${json.total} emails enviados!${temFalhas ? ' (alguns falharam)' : ''}${avisos}`, temFalhas ? 'warning' : 'success');
 
         const { data: novoHistorico } = await supabase.from('historico_novidades').insert([{
           projeto_id: projetoAtivo?.id,

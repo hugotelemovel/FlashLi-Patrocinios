@@ -67,6 +67,7 @@ export async function POST(request) {
   const todasFotos = [fotoUrl, ...fotosExtras].filter(Boolean);
   let attachments = [];
   let fotosHtml = '';
+  let fotosFalhadas = 0;
 
   for (let i = 0; i < todasFotos.length; i++) {
     const url = safeUrl(todasFotos[i]?.trim());
@@ -87,8 +88,9 @@ export async function POST(request) {
         fotosHtml += `<img src="${esc(url)}" style="max-width:100%;border-radius:8px;margin-bottom:6px;display:block;" alt="Fotografia Flash Li" />`;
       }
     } catch {
-      // timeout ou erro de rede — usa link direto como fallback
+      // timeout ou erro de rede — usa link direto como fallback (pode não renderizar em todos os clientes)
       fotosHtml += `<img src="${esc(url)}" style="max-width:100%;border-radius:8px;margin-bottom:6px;display:block;" alt="Fotografia Flash Li" />`;
+      fotosFalhadas++;
     }
   }
 
@@ -199,6 +201,7 @@ export async function POST(request) {
 
   return new Response(JSON.stringify({
     success: true, enviados, total: alvosValidos.length,
-    falhados: falhados.map(f => `${f.nome} (${f.email}): ${f.erro}`)
+    falhados: falhados.map(f => `${f.nome} (${f.email}): ${f.erro}`),
+    avisos: fotosFalhadas > 0 ? [`${fotosFalhadas} foto(s) não puderam ser incorporadas no email (timeout)`] : []
   }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
