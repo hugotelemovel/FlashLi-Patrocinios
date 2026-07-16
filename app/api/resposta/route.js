@@ -46,6 +46,9 @@ export async function GET(request) {
       const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
       });
       // Ir buscar url_base do projeto para o link do CRM
       let crmUrl = 'https://flash-li-patrocinios.vercel.app';

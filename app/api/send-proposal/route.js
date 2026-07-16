@@ -21,6 +21,16 @@ export async function POST(request) {
   const bandeira = proj.bandeira || "🇮🇪";
   const escola = proj.escola || "Flash Li Dance School";
   const gestor = proj.gestor || "Hugo";
+  const atletas = proj.atletas || "";
+  const nomeProjeto = proj.nome || `${evento} ${ano}`;
+  // Texto sobre atletas: "da atleta X" ou "das atletas X, Y" ou genérico
+  const numAtletas = atletas ? atletas.split(',').map(s => s.trim()).filter(Boolean).length : 0;
+  const atletasTxtPT = numAtletas === 0 ? "das nossas atletas"
+    : numAtletas === 1 ? `da atleta <strong>${esc(atletas)}</strong>`
+    : `das atletas <strong>${esc(atletas)}</strong>`;
+  const atletasTxtES = numAtletas === 0 ? "de nuestras atletas"
+    : numAtletas === 1 ? `de la atleta <strong>${esc(atletas)}</strong>`
+    : `de las atletas <strong>${esc(atletas)}</strong>`;
 
   // BUG 8 + 9 — Validações obrigatórias
   if (!empresa.email) {
@@ -43,9 +53,9 @@ export async function POST(request) {
 <div style="max-width:600px;margin:30px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
 
   <div style="background:#1a1a1a;padding:26px 28px;text-align:center;border-bottom:4px solid #d4af37;">
-    <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">Flash Li Dance School</div>
+    <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">${esc(escola)}</div>
     <div style="color:white;font-weight:900;font-size:20px;">${evento} ${ano} ${bandeira}</div>
-    <div style="color:#d4af37;font-size:13px;margin-top:4px;">Dublin, Julho 2026</div>
+    <div style="color:#d4af37;font-size:13px;margin-top:4px;">${cidade}, ${ano}</div>
   </div>
 
   <div style="padding:30px;">
@@ -55,8 +65,8 @@ export async function POST(request) {
 
     <p style="font-size:14px;line-height:1.7;color:#475569;margin:0 0 14px 0;">
       ${isES
-        ? `Mi nombre es <strong>Hugo Mota</strong> y les contacto como padre de la atleta <strong>Matilde Mota</strong>, bailarina de la Flash Li Dance School (Viana do Castelo, Portugal).`
-        : `O meu nome é <strong>Hugo Mota</strong> e contacto-vos na qualidade de encarregado de educação da atleta <strong>Matilde Mota</strong>, bailarina da Flash Li Dance School (Viana do Castelo).`}
+        ? `Mi nombre es <strong>${esc(gestor)}</strong> y les contacto como responsable ${atletasTxtES}, de la ${esc(escola)}.`
+        : `O meu nome é <strong>${esc(gestor)}</strong> e contacto-vos na qualidade de responsável ${atletasTxtPT}, da ${esc(escola)}.`}
     </p>
 
     <div style="background:#f0fdf4;border-left:4px solid #10b981;padding:16px 20px;border-radius:0 10px 10px 0;margin:20px 0;">
@@ -98,14 +108,14 @@ export async function POST(request) {
 
     <div style="border-top:1px solid #e2e8f0;padding-top:20px;margin-top:28px;">
       <p style="color:#64748b;font-size:13px;margin:0 0 4px 0;">${isES ? 'Quedo a su disposición. ¡Muchas gracias!' : 'Fico ao vosso dispor. Muito obrigado!'}</p>
-      <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:6px 0 2px 0;">Hugo Mota</p>
+      <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:6px 0 2px 0;">${esc(gestor)}</p>
       <p style="color:#94a3b8;font-size:12px;margin:0;">${isES ? '${gestor} — ${escola}' : '${gestor} — ${escola}'}<br/>
       📱 WhatsApp: +351 924 368 517</p>
     </div>
   </div>
 
   <div style="background:#f8fafc;padding:12px 28px;text-align:center;border-top:1px solid #e2e8f0;">
-    <div style="font-size:11px;color:#94a3b8;">Flash Li Dance School • ${cidade} ${ano} 🇮🇪 • flash-li-patrocinios.vercel.app</div>
+    <div style="font-size:11px;color:#94a3b8;">${esc(escola)} • ${cidade} ${ano} ${bandeira} • ${baseUrl.replace(/^https?:\/\//, "")}</div>
   </div>
 </div>
 </body>
@@ -114,6 +124,9 @@ export async function POST(request) {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    connectionTimeout: 10000, // 10s para ligar ao Gmail
+    greetingTimeout: 10000,
+    socketTimeout: 20000,     // 20s por operação
   });
 
   // BUG 11 — verificar SMTP antes de enviar

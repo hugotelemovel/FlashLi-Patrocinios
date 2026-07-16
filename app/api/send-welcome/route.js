@@ -28,6 +28,9 @@ export async function POST(request) {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    connectionTimeout: 10000, // 10s para ligar ao Gmail
+    greetingTimeout: 10000,
+    socketTimeout: 20000,     // 20s por operação
   });
 
   // BUG 10 — verificar SMTP
@@ -45,7 +48,7 @@ export async function POST(request) {
 <div style="max-width:600px;margin:30px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
 
   <div style="background:#1a1a1a;padding:26px 28px;text-align:center;border-bottom:4px solid #d4af37;">
-    <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">Flash Li Dance School</div>
+    <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">${esc(escola)}</div>
     <div style="color:white;font-weight:900;font-size:20px;">Obrigado pelo vosso apoio! 🏆</div>
     <div style="color:#d4af37;font-size:13px;margin-top:4px;">${cidade} ${ano} — ${evento}</div>
   </div>
@@ -56,7 +59,7 @@ export async function POST(request) {
     </p>
 
     <p style="font-size:14px;line-height:1.7;color:#475569;margin:0 0 14px 0;">
-      É com enorme alegria que vos damos as <strong>boas-vindas à nossa equipa de patrocinadores oficiais</strong> rumo ao Campeonato do Mundo ${evento} ${ano} em ${cidade}! 🇮🇪
+      É com enorme alegria que vos damos as <strong>boas-vindas à nossa equipa de patrocinadores oficiais</strong> rumo ao ${evento} ${ano} em ${cidade}! ${bandeira}
     </p>
 
     <p style="font-size:14px;line-height:1.7;color:#475569;margin:0 0 20px 0;">
@@ -89,14 +92,14 @@ export async function POST(request) {
 
     <div style="border-top:1px solid #e2e8f0;padding-top:20px;margin-top:28px;">
       <p style="color:#64748b;font-size:13px;margin:0 0 4px 0;">Com os melhores cumprimentos e um enorme obrigado,</p>
-      <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:6px 0 2px 0;">Hugo Mota</p>
+      <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:6px 0 2px 0;">${esc(gestor)}</p>
       <p style="color:#94a3b8;font-size:12px;margin:0;">${gestor} — ${escola}<br/>
       📱 WhatsApp: +351 924 368 517</p>
     </div>
   </div>
 
   <div style="background:#f8fafc;padding:12px 28px;text-align:center;border-top:1px solid #e2e8f0;">
-    <div style="font-size:11px;color:#94a3b8;">Flash Li Dance School • ${cidade} ${ano} 🇮🇪 • flash-li-patrocinios.vercel.app</div>
+    <div style="font-size:11px;color:#94a3b8;">${esc(escola)} • ${cidade} ${ano} ${bandeira} • ${baseUrl.replace(/^https?:\/\//, "")}</div>
   </div>
 </div>
 </body>

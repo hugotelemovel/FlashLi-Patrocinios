@@ -284,7 +284,7 @@ export default function App() {
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A enviar proposta por email para ${empresa.nome}...`, 'info');
     try {
-      const res = await fetch('/api/send-proposal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, pais: projetoAtivo?.pais, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, dossier_url: projetoAtivo?.dossier_url, url_base: projetoAtivo?.url_base } }) });
+      const res = await fetch('/api/send-proposal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, pais: projetoAtivo?.pais, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, atletas: projetoAtivo?.atletas, dossier_url: projetoAtivo?.dossier_url, url_base: projetoAtivo?.url_base, nome: projetoAtivo?.nome } }) });
       const json = await res.json().catch(() => ({}));
       if (res.ok) { showMessage(`✅ Email enviado com sucesso!`, 'success'); updateCampo(empresa.id, 'proposta_enviada_em', new Date().toISOString()); }
       else showMessage(`❌ Falha no envio: ${json.error || res.statusText}`, 'error');
@@ -295,7 +295,7 @@ export default function App() {
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A pedir dados e logo a ${empresa.nome}...`, 'info');
     try {
-      const res = await fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, url_base: projetoAtivo?.url_base } }) });
+      const res = await fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, atletas: projetoAtivo?.atletas, url_base: projetoAtivo?.url_base, nome: projetoAtivo?.nome } }) });
       const json = await res.json().catch(() => ({}));
       if (res.ok) showMessage(`✅ Pedido enviado com sucesso!`, 'success');
       else showMessage(`❌ Falha no envio: ${json.error || res.statusText}`, 'error');
@@ -451,7 +451,7 @@ export default function App() {
       const res = await fetch('/api/send-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: primeiraFoto, fotosExtras: fotosUrls.slice(1), videos: bVideos, linksRS: bLinksRS, empresas: alvosComEmail, tipoCampanha: bTipoCampanha, totalAngariado: angariado, metaObjetivo: objetivo, totalParceiros: totalAceites, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, pais: projetoAtivo?.pais, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, url_base: projetoAtivo?.url_base } })
+        body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: primeiraFoto, fotosExtras: fotosUrls.slice(1), videos: bVideos, linksRS: bLinksRS, empresas: alvosComEmail, tipoCampanha: bTipoCampanha, totalAngariado: angariado, metaObjetivo: objetivo, totalParceiros: totalAceites, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, pais: projetoAtivo?.pais, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, atletas: projetoAtivo?.atletas, url_base: projetoAtivo?.url_base, nome: projetoAtivo?.nome } })
       });
 
       const json = await res.json();
@@ -1087,7 +1087,7 @@ export default function App() {
           <div style={{ background: 'linear-gradient(135deg,#1a1a1a,#2d2d2d)', padding: '26px 28px', borderRadius: '16px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
             <div>
               <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '900', color: '#d4af37', display: 'flex', alignItems: 'center', gap: '10px' }}><Send size={22}/> Centro de Comunicação</h2>
-              <p style={{ margin: '5px 0 0 0', color: '#94a3b8', fontSize: '13px' }}>Mantém os teus parceiros a par de cada passo rumo a Dublin 🇮🇪</p>
+              <p style={{ margin: '5px 0 0 0', color: '#94a3b8', fontSize: '13px' }}>Mantém os teus parceiros a par de cada passo rumo a {projetoAtivo?.cidade || 'a competição'} {projetoAtivo?.bandeira || ''}</p>
             </div>
             <div style={{ display: 'flex', gap: '22px', flexWrap: 'wrap' }}>
               {[
@@ -1245,7 +1245,7 @@ export default function App() {
           {/* ── PASSO 5: REDES SOCIAIS ── */}
           <div style={{ background: 'white', padding: '22px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
             <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '4px', fontSize: '14px' }}>5️⃣ Posts das Redes Sociais da Escola</div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>Cola aqui links de posts do Instagram ou Facebook da Flash Li Dance School que queiras incluir no email — os patrocinadores verão o link com uma descrição.</div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>Cola aqui links de posts do Instagram ou Facebook da escola que queiras incluir no email — os patrocinadores verão o link com uma descrição.</div>
 
             {bLinksRS.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
@@ -1314,9 +1314,9 @@ export default function App() {
               <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', maxWidth: '600px', margin: '0 auto', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
                 {/* Header */}
                 <div style={{ background: '#1a1a1a', padding: '22px', textAlign: 'center', borderBottom: '4px solid #d4af37' }}>
-                  <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '5px' }}>Flash Li Dance School</div>
-                  <div style={{ color: 'white', fontWeight: '900', fontSize: '18px' }}>Diário de Bordo 🇮🇪</div>
-                  <div style={{ color: '#d4af37', fontSize: '12px', marginTop: '4px' }}>Dublin 2026 — DWCup</div>
+                  <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '5px' }}>{projetoAtivo?.escola || 'Escola'}</div>
+                  <div style={{ color: 'white', fontWeight: '900', fontSize: '18px' }}>Diário de Bordo {projetoAtivo?.bandeira || ''}</div>
+                  <div style={{ color: '#d4af37', fontSize: '12px', marginTop: '4px' }}>{projetoAtivo?.cidade} {projetoAtivo?.ano} — {projetoAtivo?.evento}</div>
                 </div>
                 {/* Badge tipo */}
                 <div style={{ background: tc.bg, padding: '8px 24px', borderBottom: `1px solid ${tc.cor}22` }}>
@@ -1378,7 +1378,7 @@ export default function App() {
                   )}
                   {/* Barra de progresso */}
                   <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px 16px', margin: '18px 0 14px 0', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>📊 A nossa jornada para Dublin</div>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>📊 A nossa jornada para {projetoAtivo?.cidade || 'a competição'}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                       <span style={{ fontSize: '12px', color: '#334155', fontWeight: '600' }}>Meta de angariação</span>
                       <span style={{ fontSize: '12px', color: '#1a1a1a', fontWeight: 'bold' }}>{angariado.toLocaleString('pt-PT')}€ / {objetivo.toLocaleString('pt-PT')}€</span>
@@ -1389,11 +1389,11 @@ export default function App() {
                     <div style={{ fontSize: '11px', color: '#64748b', marginTop: '5px' }}>{(objetivo > 0 ? ((angariado/objetivo)*100).toFixed(0) : 0)}% atingido • {totalAceites} parceiro(s) a bordo</div>
                   </div>
                   <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px', color: '#64748b', fontSize: '13px' }}>
-                    Com os melhores cumprimentos,<br/><strong style={{ color: '#1a1a1a' }}>Hugo Mota</strong><br/><span style={{ fontSize: '11px' }}>Gestão de Patrocínios — Flash Li Dance School</span>
+                    Com os melhores cumprimentos,<br/><strong style={{ color: '#1a1a1a' }}>{projetoAtivo?.gestor || 'Hugo'}</strong><br/><span style={{ fontSize: '11px' }}>Gestão de Patrocínios — {projetoAtivo?.escola || 'Flash Li'}</span>
                   </div>
                 </div>
                 <div style={{ background: '#f8fafc', padding: '12px', textAlign: 'center', borderTop: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Flash Li Dance School • Dublin 2026 🇮🇪</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{projetoAtivo?.escola} • {projetoAtivo?.cidade} {projetoAtivo?.ano} {projetoAtivo?.bandeira}</div>
                 </div>
               </div>
             </div>
@@ -1479,7 +1479,7 @@ export default function App() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
           <div style={{ background: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', textAlign: 'center', borderTop: `6px solid ${PRIMARY_COLOR}` }}>
             <h2 style={{ marginTop: 0, color: TEXT_PRIMARY, fontSize: '28px', fontWeight: '900' }}>🏆 Mural de Honra</h2>
-            <p style={{ color: '#64748b', fontSize: '15px', maxWidth: '600px', margin: '0 auto' }}>Um agradecimento especial aos visionários que acreditam e apoiam o talento da nossa juventude rumo a Dublin 2026.</p>
+            <p style={{ color: '#64748b', fontSize: '15px', maxWidth: '600px', margin: '0 auto' }}>Um agradecimento especial aos visionários que acreditam e apoiam o talento da nossa juventude rumo a {projetoAtivo?.cidade} {projetoAtivo?.ano}.</p>
           </div>
 
           {parceirosDiamante.length > 0 && (

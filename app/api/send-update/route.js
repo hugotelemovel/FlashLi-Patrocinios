@@ -48,6 +48,9 @@ export async function POST(request) {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    connectionTimeout: 10000, // 10s para ligar ao Gmail
+    greetingTimeout: 10000,
+    socketTimeout: 20000,     // 20s por operação
   });
 
   try { await transporter.verify(); }
@@ -145,7 +148,7 @@ export async function POST(request) {
 <div style="max-width:600px;margin:30px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
 
   <div style="background:#1a1a1a;padding:26px 28px;text-align:center;border-bottom:4px solid #d4af37;">
-    <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">Flash Li Dance School</div>
+    <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">${esc(escola)}</div>
     <div style="color:white;font-weight:900;font-size:20px;letter-spacing:0.5px;">Diário de Bordo ${bandeira}</div>
     <div style="color:#d4af37;font-size:12px;margin-top:4px;">${cidade} ${ano} — ${evento}</div>
   </div>
@@ -166,7 +169,7 @@ export async function POST(request) {
     ${rsSection}
 
     <div style="background:#f8fafc;border-radius:12px;padding:18px 20px;margin:22px 0 18px 0;border:1px solid #e2e8f0;">
-      <div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📊 A nossa jornada para Dublin</div>
+      <div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📊 A nossa jornada para ${cidade}</div>
       <div style="background:#e2e8f0;border-radius:999px;height:10px;overflow:hidden;margin-bottom:8px;">
         <div style="width:${Math.min(100, metaObjetivo > 0 ? Math.round((totalAngariado / metaObjetivo) * 100) : 0)}%;background:linear-gradient(90deg,#d4af37,#f0cc60);height:100%;border-radius:999px;"></div>
       </div>
@@ -175,13 +178,13 @@ export async function POST(request) {
 
     <div style="border-top:1px solid #e2e8f0;padding-top:18px;">
       <p style="color:#64748b;font-size:13px;margin:0 0 2px 0;">Com os melhores cumprimentos,</p>
-      <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:5px 0 2px 0;">Hugo Mota</p>
+      <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:5px 0 2px 0;">${esc(gestor)}</p>
       <p style="color:#94a3b8;font-size:12px;margin:0;">Gestão de Patrocínios — ${escola}</p>
     </div>
   </div>
 
   <div style="background:#f8fafc;padding:13px 28px;text-align:center;border-top:1px solid #e2e8f0;">
-    <div style="font-size:11px;color:#94a3b8;">Flash Li Dance School • ${cidade} ${ano} ${bandeira} • flash-li-patrocinios.vercel.app</div>
+    <div style="font-size:11px;color:#94a3b8;">${esc(escola)} • ${cidade} ${ano} ${bandeira} • ${baseUrl.replace(/^https?:\/\//, "")}</div>
   </div>
 
 </div>
