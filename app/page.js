@@ -41,6 +41,13 @@ export default function App() {
   const [bFotos, setBFotos] = useState([]);
   const [uploadingFotos, setUploadingFotos] = useState(false);
   const [historicoExpandido, setHistoricoExpandido] = useState(null);
+  const [bLinksRS, setBLinksRS] = useState([]);
+  const [bLinkRSInput, setBLinkRSInput] = useState('');
+  const [bLinkRSDesc, setBLinkRSDesc] = useState('');
+  const [bVideos, setBVideos] = useState([]);
+  const [bVideoInput, setBVideoInput] = useState('');
+  const [bVideoDesc, setBVideoDesc] = useState('');
+  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   // === CONFIGURAÇÕES GLOBAIS (WHATSAPP) ===
   const [showSettings, setShowSettings] = useState(false);
@@ -229,6 +236,52 @@ export default function App() {
     }
   }
 
+  // Detectar tipo de link de rede social
+  function detectarTipoRS(url) {
+    if (url.includes('instagram.com')) return { icon: '📸', nome: 'Instagram' };
+    if (url.includes('facebook.com') || url.includes('fb.com')) return { icon: '👥', nome: 'Facebook' };
+    if (url.includes('youtube.com') || url.includes('youtu.be')) return { icon: '▶️', nome: 'YouTube' };
+    if (url.includes('tiktok.com')) return { icon: '🎵', nome: 'TikTok' };
+    if (url.includes('drive.google.com')) return { icon: '☁️', nome: 'Google Drive' };
+    return { icon: '🔗', nome: 'Link' };
+  }
+
+  function adicionarLinkRS() {
+    if (!bLinkRSInput.trim()) return;
+    const tipo = detectarTipoRS(bLinkRSInput);
+    setBLinksRS(prev => [...prev, { tipo, url: bLinkRSInput.trim(), descricao: bLinkRSDesc.trim() || tipo.nome }]);
+    setBLinkRSInput(''); setBLinkRSDesc('');
+  }
+
+  function removerLinkRS(idx) { setBLinksRS(prev => prev.filter((_, i) => i !== idx)); }
+
+  function adicionarVideo() {
+    if (!bVideoInput.trim()) return;
+    const tipo = detectarTipoRS(bVideoInput);
+    setBVideos(prev => [...prev, { tipo, url: bVideoInput.trim(), descricao: bVideoDesc.trim() || 'Ver vídeo' }]);
+    setBVideoInput(''); setBVideoDesc('');
+  }
+
+  function removerVideo(idx) { setBVideos(prev => prev.filter((_, i) => i !== idx)); }
+
+  async function uploadVideoFicheiro(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    // Vídeos são grandes — guardar no Supabase storage
+    setUploadingVideo(true);
+    showMessage('A carregar vídeo... (pode demorar)', 'info');
+    const fileName = `video_${Math.random().toString(36).substring(2)}_${Date.now()}.${file.name.split('.').pop()}`;
+    const { data, error } = await supabase.storage.from('fotos').upload(fileName, file, { contentType: file.type });
+    if (error) { showMessage('❌ Erro no upload do vídeo: ' + error.message, 'error'); }
+    else {
+      const { data: urlData } = supabase.storage.from('fotos').getPublicUrl(fileName);
+      setBVideos(prev => [...prev, { tipo: { icon: '🎬', nome: 'Vídeo' }, url: urlData.publicUrl, descricao: file.name.replace(/\.[^/.]+$/, '') }]);
+      showMessage('🎬 Vídeo pronto!', 'success');
+    }
+    setUploadingVideo(false);
+    e.target.value = '';
+  }
+
   async function enviarBroadcast() {
     if (!bAssunto.trim()) return showMessage('⚠️ O assunto do email é obrigatório!', 'error');
     if (!bMensagem.trim()) return showMessage('⚠️ A mensagem não pode estar vazia!', 'error');
@@ -260,7 +313,7 @@ export default function App() {
       const res = await fetch('/api/send-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: primeiraFoto, fotosExtras: fotosUrls.slice(1), videoUrl: bVideo, empresas: alvosComEmail, tipoCampanha: bTipoCampanha })
+        body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: primeiraFoto, fotosExtras: fotosUrls.slice(1), videos: bVideos, linksRS: bLinksRS, empresas: alvosComEmail, tipoCampanha: bTipoCampanha })
       });
 
       const json = await res.json();
@@ -278,7 +331,7 @@ export default function App() {
         }]).select();
         if (novoHistorico) setHistorico([novoHistorico[0], ...historico]);
 
-        setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo(''); setBFotos([]); setNomeArquivoTemp('');
+        setBAssunto(''); setBMensagem(''); setBFoto(''); setBVideo(''); setBFotos([]); setNomeArquivoTemp(''); setBVideos([]); setBLinksRS([]);
       } else {
         showMessage(`❌ Erro: ${json.error || 'Erro desconhecido'}`, 'error');
       }
@@ -724,187 +777,318 @@ export default function App() {
         const semEmail = alvosPreview.length - comEmail.length;
 
         const tipoConfig = {
-          novidade: { icon: '🗞️', label: 'Novidade', cor: '#3b82f6', bg: '#eff6ff' },
-          resultado: { icon: '🏆', label: 'Resultado', cor: '#eab308', bg: '#fefce8' },
-          agradecimento: { icon: '💛', label: 'Agradecimento', cor: '#10b981', bg: '#f0fdf4' },
-          urgente: { icon: '⚡', label: 'Urgente', cor: '#ef4444', bg: '#fff1f2' },
+          novidade:      { icon: '🗞️', label: 'Novidade',      cor: '#3b82f6', bg: '#eff6ff' },
+          resultado:     { icon: '🏆', label: 'Resultado',      cor: '#eab308', bg: '#fefce8' },
+          agradecimento: { icon: '💛', label: 'Agradecimento',  cor: '#10b981', bg: '#f0fdf4' },
+          urgente:       { icon: '⚡', label: 'Urgente',        cor: '#ef4444', bg: '#fff1f2' },
         };
         const tc = tipoConfig[bTipoCampanha] || tipoConfig.novidade;
 
         return (
         <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '860px', margin: '0 auto' }}>
 
-          {/* CABEÇALHO ESTATÍSTICAS */}
-          <div style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)', padding: '28px 30px', borderRadius: '16px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+          {/* ── CABEÇALHO ESTATÍSTICAS ── */}
+          <div style={{ background: 'linear-gradient(135deg,#1a1a1a,#2d2d2d)', padding: '26px 28px', borderRadius: '16px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '900', color: '#d4af37', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Send size={22}/> Centro de Comunicação
-              </h2>
-              <p style={{ margin: '6px 0 0 0', color: '#94a3b8', fontSize: '13px' }}>Mantém os teus parceiros a par de cada passo rumo a Dublin 🇮🇪</p>
+              <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '900', color: '#d4af37', display: 'flex', alignItems: 'center', gap: '10px' }}><Send size={22}/> Centro de Comunicação</h2>
+              <p style={{ margin: '5px 0 0 0', color: '#94a3b8', fontSize: '13px' }}>Mantém os teus parceiros a par de cada passo rumo a Dublin 🇮🇪</p>
             </div>
-            <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '22px', flexWrap: 'wrap' }}>
               {[
                 { val: historico.length, label: 'Campanhas' },
-                { val: historico.reduce((s,h)=>s+(h.total_destinatarios||0),0), label: 'Emails Enviados' },
-                { val: empresas.filter(e=>e.status==='Aceitou'&&e.email).length, label: 'Parceiros Ativos' },
-              ].map(({val,label}) => (
+                { val: historico.reduce((s,h) => s+(h.total_destinatarios||0), 0), label: 'Emails Enviados' },
+                { val: empresas.filter(e => e.status==='Aceitou' && e.email).length, label: 'Parceiros Ativos' },
+              ].map(({val, label}) => (
                 <div key={label} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: '900', color: '#d4af37' }}>{val}</div>
+                  <div style={{ fontSize: '26px', fontWeight: '900', color: '#d4af37' }}>{val}</div>
                   <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* PASSO 1 — TIPO DE CAMPANHA */}
-          <div style={{ background: 'white', padding: '22px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '14px', fontSize: '14px' }}>1️⃣ Escolhe o tipo de campanha</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+          {/* ── PASSO 1: TIPO ── */}
+          <div style={{ background: 'white', padding: '20px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '12px', fontSize: '14px' }}>1️⃣ Tipo de comunicação</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
               {Object.entries(tipoConfig).map(([key, cfg]) => (
                 <button key={key} onClick={() => aplicarTemplate(key)}
-                  style={{ padding: '14px 10px', borderRadius: '10px', border: `2px solid ${bTipoCampanha===key ? cfg.cor : '#e2e8f0'}`, background: bTipoCampanha===key ? cfg.bg : 'white', cursor: 'pointer', textAlign: 'center', fontWeight: bTipoCampanha===key ? 'bold' : 'normal' }}>
-                  <div style={{ fontSize: '22px', marginBottom: '5px' }}>{cfg.icon}</div>
-                  <div style={{ fontSize: '13px', color: bTipoCampanha===key ? cfg.cor : '#64748b', fontWeight: 'bold' }}>{cfg.label}</div>
-                  {bTipoCampanha===key && <div style={{ fontSize: '10px', color: cfg.cor, marginTop: '3px' }}>● Selecionado</div>}
+                  style={{ padding: '13px 8px', borderRadius: '10px', border: `2px solid ${bTipoCampanha===key ? cfg.cor : '#e2e8f0'}`, background: bTipoCampanha===key ? cfg.bg : 'white', cursor: 'pointer', textAlign: 'center', fontWeight: bTipoCampanha===key ? 'bold' : 'normal' }}>
+                  <div style={{ fontSize: '20px', marginBottom: '4px' }}>{cfg.icon}</div>
+                  <div style={{ fontSize: '12px', color: bTipoCampanha===key ? cfg.cor : '#64748b', fontWeight: 'bold' }}>{cfg.label}</div>
+                  {bTipoCampanha===key && <div style={{ fontSize: '10px', color: cfg.cor, marginTop: '2px' }}>● Ativo</div>}
                 </button>
               ))}
             </div>
-            <div style={{ marginTop: '10px', fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>💡 Clica num tipo para preencher o texto automaticamente.</div>
+            <div style={{ marginTop: '8px', fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>💡 Clica num tipo para preencher o texto automaticamente.</div>
           </div>
 
-          {/* PASSO 2 — COMPOSIÇÃO */}
-          <div style={{ background: 'white', padding: '25px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: `2px solid ${tc.cor}22` }}>
-            <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '18px', fontSize: '14px' }}>2️⃣ Escreve o teu email</div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>📌 Assunto <span style={{ color: '#ef4444' }}>*</span></label>
+          {/* ── PASSO 2: TEXTO ── */}
+          <div style={{ background: 'white', padding: '22px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: `2px solid ${tc.cor}22` }}>
+            <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '16px', fontSize: '14px' }}>2️⃣ Assunto e mensagem</div>
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '7px', color: '#334155', fontSize: '13px' }}>📌 Assunto <span style={{ color: '#ef4444' }}>*</span></label>
               <input type="text" value={bAssunto} onChange={e => setBAssunto(e.target.value)}
                 placeholder="Ex: 🥇 Conquistámos o pódio no Nacional!"
-                style={{ width: '100%', padding: '13px 15px', borderRadius: '9px', border: '1.5px solid #e2e8f0', fontSize: '15px', fontWeight: '600', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '12px 14px', borderRadius: '9px', border: '1.5px solid #e2e8f0', fontSize: '15px', fontWeight: '600', boxSizing: 'border-box' }} />
             </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>
+            <div>
+              <label style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '7px', color: '#334155', fontSize: '13px' }}>
                 <span>✍️ Mensagem <span style={{ color: '#ef4444' }}>*</span></span>
                 <span style={{ fontWeight: 'normal', color: '#94a3b8' }}>{bMensagem.length} caract.</span>
               </label>
-              <textarea value={bMensagem} onChange={e => setBMensagem(e.target.value)} rows="9"
-                placeholder="Conta a história, partilha os resultados, agradece o apoio..."
-                style={{ width: '100%', padding: '13px 15px', borderRadius: '9px', border: '1.5px solid #e2e8f0', fontSize: '14px', resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.65', boxSizing: 'border-box' }} />
-            </div>
-
-            {/* FOTOS MÚLTIPLAS */}
-            <div style={{ background: '#f8fafc', padding: '18px', borderRadius: '10px', border: '1.5px dashed #cbd5e1', marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '12px', color: '#334155', fontSize: '13px' }}>📸 Fotografias — podes adicionar várias (opcional)</label>
-              {bFotos.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
-                  {bFotos.map((f,idx) => (
-                    <div key={idx} style={{ position: 'relative' }}>
-                      <img src={f.url} alt={`foto ${idx+1}`} style={{ width: '85px', height: '85px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #d4af37' }} onError={e=>e.target.style.opacity='0.3'} />
-                      <button onClick={() => removerFoto(idx)} style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#ef4444', border: '2px solid white', borderRadius: '50%', width: '20px', height: '20px', color: 'white', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>✕</button>
-                    </div>
-                  ))}
-                  <label className="btn-hover" style={{ width: '85px', height: '85px', borderRadius: '8px', border: '2px dashed #cbd5e1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8', fontSize: '11px', gap: '4px' }}>
-                    <UploadCloud size={18}/> Mais
-                    <input type="file" accept="image/*" multiple onChange={uploadFotosDiretas} style={{ display: 'none' }} disabled={uploadingFotos} />
-                  </label>
-                </div>
-              )}
-              {bFotos.length === 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <label className="btn-hover" style={{ background: '#1a1a1a', color: 'white', padding: '10px 16px', borderRadius: '8px', cursor: uploadingFotos ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', alignSelf: 'flex-start' }}>
-                    <UploadCloud size={16}/> {uploadingFotos ? 'A carregar...' : 'Selecionar fotos do dispositivo'}
-                    <input type="file" accept="image/*" multiple onChange={uploadFotosDiretas} style={{ display: 'none' }} disabled={uploadingFotos} />
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
-                    <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold' }}>OU COLA UM LINK</span>
-                    <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
-                  </div>
-                  <input type="text" value={bFoto} onChange={e => setBFoto(e.target.value)}
-                    placeholder="https://... (Google Fotos, Drive, Instagram...)"
-                    style={{ width: '100%', padding: '11px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', boxSizing: 'border-box' }} />
-                  {bFoto && <img src={bFoto} alt="preview" style={{ maxWidth: '100%', maxHeight: '160px', borderRadius: '8px', border: '2px solid #d4af37', objectFit: 'cover' }} onError={e=>e.target.style.display='none'} />}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#334155', fontSize: '13px' }}>▶️ Link de Vídeo — YouTube / Instagram / TikTok (opcional)</label>
-              <input type="text" value={bVideo} onChange={e => setBVideo(e.target.value)}
-                placeholder="https://youtube.com/..."
-                style={{ width: '100%', padding: '11px 13px', borderRadius: '9px', border: '1.5px solid #e2e8f0', boxSizing: 'border-box', fontSize: '14px' }} />
+              <textarea value={bMensagem} onChange={e => setBMensagem(e.target.value)} rows="8"
+                placeholder="Conta a história, partilha os resultados, agradece o apoio dos parceiros..."
+                style={{ width: '100%', padding: '12px 14px', borderRadius: '9px', border: '1.5px solid #e2e8f0', fontSize: '14px', resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.65', boxSizing: 'border-box' }} />
             </div>
           </div>
 
-          {/* PASSO 3 — DESTINATÁRIOS E ENVIO */}
+          {/* ── PASSO 3: FOTOS ── */}
           <div style={{ background: 'white', padding: '22px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '14px', fontSize: '14px' }}>3️⃣ Define os destinatários e envia</div>
+            <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '4px', fontSize: '14px' }}>3️⃣ Fotografias</div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>As tuas fotos pessoais, fotos da escola, momentos de treino e competição. Podes fazer upload ou colar um link do Google Fotos / Drive / Instagram.</div>
+
+            {bFotos.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+                {bFotos.map((f, idx) => (
+                  <div key={idx} style={{ position: 'relative' }}>
+                    <img src={f.url} alt={`foto ${idx+1}`} style={{ width: '88px', height: '88px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #d4af37' }} onError={e => e.target.style.opacity='0.3'} />
+                    <button onClick={() => removerFoto(idx)} style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#ef4444', border: '2px solid white', borderRadius: '50%', width: '20px', height: '20px', color: 'white', cursor: 'pointer', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>✕</button>
+                  </div>
+                ))}
+                <label className="btn-hover" style={{ width: '88px', height: '88px', borderRadius: '8px', border: '2px dashed #cbd5e1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8', fontSize: '11px', gap: '4px' }}>
+                  <UploadCloud size={18}/> + Fotos
+                  <input type="file" accept="image/*" multiple onChange={uploadFotosDiretas} style={{ display: 'none' }} disabled={uploadingFotos} />
+                </label>
+              </div>
+            )}
+
+            {bFotos.length === 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <label className="btn-hover" style={{ background: '#1a1a1a', color: 'white', padding: '10px 16px', borderRadius: '8px', cursor: uploadingFotos ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', alignSelf: 'flex-start' }}>
+                  <UploadCloud size={15}/> {uploadingFotos ? 'A carregar...' : 'Upload de fotos do dispositivo'}
+                  <input type="file" accept="image/*" multiple onChange={uploadFotosDiretas} style={{ display: 'none' }} disabled={uploadingFotos} />
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
+                  <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold' }}>OU COLA UM LINK DE FOTO</span>
+                  <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input type="text" value={bFoto} onChange={e => setBFoto(e.target.value)}
+                    placeholder="https://... (Google Fotos, Drive, Instagram, Supabase...)"
+                    style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }}
+                    onKeyDown={e => { if (e.key === 'Enter' && bFoto.trim()) { setBFotos(prev => [...prev, { url: bFoto.trim(), fileName: null }]); setBFoto(''); }}}
+                  />
+                  <button onClick={() => { if (bFoto.trim()) { setBFotos(prev => [...prev, { url: bFoto.trim(), fileName: null }]); setBFoto(''); }}}
+                    style={{ padding: '10px 14px', background: '#1a1a1a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+                    + Adicionar
+                  </button>
+                </div>
+                {bFoto && <img src={bFoto} alt="preview" style={{ maxHeight: '140px', borderRadius: '8px', border: '2px solid #d4af37', objectFit: 'cover' }} onError={e => e.target.style.display='none'} />}
+              </div>
+            )}
+          </div>
+
+          {/* ── PASSO 4: VÍDEOS ── */}
+          <div style={{ background: 'white', padding: '22px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '4px', fontSize: '14px' }}>4️⃣ Vídeos</div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>Os teus vídeos de treino, competição ou mensagens pessoais. Podes fazer upload direto, colar um link do YouTube/Instagram/TikTok, ou um link do Google Drive.</div>
+
+            {bVideos.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+                {bVideos.map((v, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '20px' }}>{v.tipo.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1a1a1a' }}>{v.descricao}</div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.tipo.nome} • {v.url}</div>
+                    </div>
+                    <a href={v.url} target="_blank" style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 'bold', textDecoration: 'none', flexShrink: 0 }}>Ver</a>
+                    <button onClick={() => removerVideo(idx)} style={{ background: '#fee2e2', border: 'none', borderRadius: '6px', color: '#ef4444', cursor: 'pointer', padding: '4px 8px', fontWeight: 'bold', fontSize: '12px', flexShrink: 0 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Upload de ficheiro de vídeo */}
+              <label className="btn-hover" style={{ background: uploadingVideo ? '#94a3b8' : '#7c3aed', color: 'white', padding: '10px 16px', borderRadius: '8px', cursor: uploadingVideo ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', alignSelf: 'flex-start' }}>
+                <UploadCloud size={15}/> {uploadingVideo ? 'A carregar vídeo...' : 'Upload de vídeo do dispositivo'}
+                <input type="file" accept="video/*" onChange={uploadVideoFicheiro} style={{ display: 'none' }} disabled={uploadingVideo} />
+              </label>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
+                <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold' }}>OU COLA UM LINK</span>
+                <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <input type="text" value={bVideoInput} onChange={e => setBVideoInput(e.target.value)}
+                  placeholder="YouTube, Instagram, TikTok, Google Drive..."
+                  style={{ flex: 2, minWidth: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+                <input type="text" value={bVideoDesc} onChange={e => setBVideoDesc(e.target.value)}
+                  placeholder="Descrição (ex: Treino de sábado)"
+                  style={{ flex: 1, minWidth: '140px', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+                <button onClick={adicionarVideo}
+                  style={{ padding: '10px 14px', background: '#1a1a1a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', flexShrink: 0 }}>
+                  + Adicionar
+                </button>
+              </div>
+
+              <div style={{ background: '#f0f9ff', borderRadius: '8px', padding: '10px 14px', border: '1px solid #bae6fd' }}>
+                <div style={{ fontSize: '12px', color: '#0369a1', fontWeight: 'bold', marginBottom: '4px' }}>💡 Como partilhar vídeos do Google Drive</div>
+                <div style={{ fontSize: '11px', color: '#0284c7', lineHeight: '1.5' }}>
+                  Drive → clica no vídeo → ⋮ → "Obter link" → "Qualquer pessoa com o link pode ver" → copia o link e cola aqui.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── PASSO 5: REDES SOCIAIS ── */}
+          <div style={{ background: 'white', padding: '22px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '4px', fontSize: '14px' }}>5️⃣ Posts das Redes Sociais da Escola</div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>Cola aqui links de posts do Instagram ou Facebook da Flash Li Dance School que queiras incluir no email — os patrocinadores verão o link com uma descrição.</div>
+
+            {bLinksRS.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+                {bLinksRS.map((rs, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '20px' }}>{rs.tipo.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1a1a1a' }}>{rs.descricao}</div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rs.tipo.nome} • {rs.url}</div>
+                    </div>
+                    <a href={rs.url} target="_blank" style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 'bold', textDecoration: 'none', flexShrink: 0 }}>Ver</a>
+                    <button onClick={() => removerLinkRS(idx)} style={{ background: '#fee2e2', border: 'none', borderRadius: '6px', color: '#ef4444', cursor: 'pointer', padding: '4px 8px', fontWeight: 'bold', fontSize: '12px', flexShrink: 0 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <input type="text" value={bLinkRSInput} onChange={e => setBLinkRSInput(e.target.value)}
+                placeholder="Link do post (Instagram, Facebook, YouTube...)"
+                style={{ flex: 2, minWidth: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+              <input type="text" value={bLinkRSDesc} onChange={e => setBLinkRSDesc(e.target.value)}
+                placeholder="Descrição (ex: Post do pódio nacional)"
+                style={{ flex: 1, minWidth: '140px', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+              <button onClick={adicionarLinkRS}
+                style={{ padding: '10px 14px', background: '#1a1a1a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', flexShrink: 0 }}>
+                + Adicionar
+              </button>
+            </div>
+          </div>
+
+          {/* ── PASSO 6: DESTINATÁRIOS E ENVIO ── */}
+          <div style={{ background: 'white', padding: '22px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: '2px solid #1a1a1a' }}>
+            <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '14px', fontSize: '14px' }}>6️⃣ Destinatários e envio</div>
             <div style={{ background: '#f0fdf4', padding: '14px', borderRadius: '10px', border: '1px solid #bbf7d0', marginBottom: '16px' }}>
               <select value={bDestinatarios} onChange={e => { setBDestinatarios(e.target.value); setResultadoEnvio(null); }}
                 style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #86efac', background: 'white', fontWeight: 'bold', color: '#15803d', fontSize: '14px', marginBottom: '10px' }}>
-                <option value="aceites">🏆 Parceiros Oficiais (Aceites) — {empresas.filter(e=>e.status==='Aceitou').length} contactos</option>
-                <option value="pendentes">⏳ Pendentes + Em Análise — {empresas.filter(e=>e.status==='Pendente'||e.status==='Em Análise').length} contactos</option>
+                <option value="aceites">🏆 Parceiros Oficiais (Aceites) — {empresas.filter(e => e.status==='Aceitou').length} contactos</option>
+                <option value="pendentes">⏳ Pendentes + Em Análise — {empresas.filter(e => e.status==='Pendente' || e.status==='Em Análise').length} contactos</option>
                 <option value="todos">🌍 Todos os contactos — {empresas.length} no total</option>
               </select>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <span style={{ background: '#dcfce7', color: '#166534', padding: '5px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' }}>✉️ {comEmail.length} receberão o email</span>
                 {semEmail > 0 && <span style={{ background: '#fee2e2', color: '#991b1b', padding: '5px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' }}>⚠️ {semEmail} sem email</span>}
+                {bFotos.length > 0 && <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '5px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' }}>📸 {bFotos.length} foto(s)</span>}
+                {bVideos.length > 0 && <span style={{ background: '#f5f3ff', color: '#7c3aed', padding: '5px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' }}>🎬 {bVideos.length} vídeo(s)</span>}
+                {bLinksRS.length > 0 && <span style={{ background: '#fdf4ff', color: '#a21caf', padding: '5px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' }}>📱 {bLinksRS.length} post(s)</span>}
               </div>
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={() => setShowPreview(!showPreview)} className="btn-hover"
                 style={{ flex: '1 1 130px', padding: '14px', background: '#f1f5f9', color: '#334155', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                👁️ {showPreview ? 'Fechar Preview' : 'Pré-visualizar'}
+                👁️ {showPreview ? 'Fechar Preview' : 'Pré-visualizar Email'}
               </button>
               <button onClick={enviarBroadcast} disabled={enviando || comEmail.length === 0} className="btn-hover"
-                style={{ flex: '2 1 220px', padding: '14px', background: enviando ? '#94a3b8' : '#1a1a1a', color: '#d4af37', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px', cursor: enviando||comEmail.length===0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: comEmail.length===0 ? 0.5 : 1 }}>
+                style={{ flex: '2 1 220px', padding: '14px', background: enviando ? '#94a3b8' : '#1a1a1a', color: '#d4af37', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px', cursor: enviando || comEmail.length===0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: comEmail.length===0 ? 0.5 : 1 }}>
                 {enviando ? '⏳ A enviar...' : <><Send size={18}/> Enviar para {comEmail.length} parceiro(s)</>}
               </button>
             </div>
           </div>
 
-          {/* PREVIEW DO EMAIL */}
+          {/* ── PREVIEW DO EMAIL ── */}
           {showPreview && (
             <div style={{ background: 'white', padding: '20px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: `2px dashed ${tc.cor}` }}>
               <div style={{ fontWeight: 'bold', color: '#334155', marginBottom: '16px', fontSize: '14px' }}>👁️ Preview — como o parceiro verá o email</div>
               <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', maxWidth: '600px', margin: '0 auto', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+                {/* Header */}
                 <div style={{ background: '#1a1a1a', padding: '22px', textAlign: 'center', borderBottom: '4px solid #d4af37' }}>
                   <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '5px' }}>Flash Li Dance School</div>
                   <div style={{ color: 'white', fontWeight: '900', fontSize: '18px' }}>Diário de Bordo 🇮🇪</div>
                   <div style={{ color: '#d4af37', fontSize: '12px', marginTop: '4px' }}>Dublin 2026 — DWCup</div>
                 </div>
-                <div style={{ padding: '26px', background: 'white' }}>
-                  <div style={{ background: tc.bg, border: `1px solid ${tc.cor}44`, borderRadius: '6px', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '14px', fontSize: '12px', fontWeight: 'bold', color: tc.cor }}>
-                    {tc.icon} {tc.label}
-                  </div>
-                  <div style={{ fontWeight: '800', color: '#1a1a1a', fontSize: '18px', marginBottom: '14px', lineHeight: '1.3' }}>
+                {/* Badge tipo */}
+                <div style={{ background: tc.bg, padding: '8px 24px', borderBottom: `1px solid ${tc.cor}22` }}>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: tc.cor }}>{tc.icon} {tc.label}</span>
+                </div>
+                {/* Corpo */}
+                <div style={{ padding: '24px', background: 'white' }}>
+                  <div style={{ fontWeight: '800', color: '#1a1a1a', fontSize: '17px', marginBottom: '14px' }}>
                     {bAssunto || <span style={{ color: '#94a3b8', fontStyle: 'italic', fontWeight: 'normal' }}>(sem assunto)</span>}
                   </div>
-                  <p style={{ color: '#475569', fontSize: '14px', margin: '0 0 10px 0' }}>Estimado(a) parceiro(a) da <strong>[Nome da Empresa]</strong>,</p>
+                  <p style={{ color: '#475569', fontSize: '14px', margin: '0 0 8px 0' }}>Estimado(a) parceiro(a) da <strong>[Nome da Empresa]</strong>,</p>
                   <div style={{ background: '#f8fafc', borderLeft: '4px solid #d4af37', padding: '14px 16px', margin: '14px 0', fontSize: '14px', lineHeight: '1.7', whiteSpace: 'pre-wrap', color: '#1a1a1a', borderRadius: '0 8px 8px 0' }}>
                     {bMensagem || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(sem mensagem)</span>}
                   </div>
-                  {(bFotos.length > 0 || bFoto) && (
+                  {/* Fotos preview */}
+                  {bFotos.length > 0 && (
                     <div style={{ margin: '14px 0' }}>
-                      {bFotos.length > 0
-                        ? <div style={{ display: 'grid', gridTemplateColumns: bFotos.length===1 ? '1fr' : 'repeat(2,1fr)', gap: '6px' }}>
-                            {bFotos.map((f,i) => <img key={i} src={f.url} style={{ width: '100%', borderRadius: '6px', objectFit: 'cover', maxHeight: bFotos.length===1?'280px':'140px' }} onError={e=>e.target.style.display='none'} />)}
-                          </div>
-                        : <img src={bFoto} style={{ width: '100%', borderRadius: '8px', maxHeight: '260px', objectFit: 'cover' }} onError={e=>e.target.style.display='none'} />
-                      }
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📸 Galeria</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: bFotos.length===1 ? '1fr' : 'repeat(2,1fr)', gap: '6px' }}>
+                        {bFotos.map((f, i) => <img key={i} src={f.url} style={{ width: '100%', borderRadius: '6px', objectFit: 'cover', maxHeight: bFotos.length===1 ? '260px' : '130px' }} onError={e => e.target.style.display='none'} />)}
+                      </div>
                     </div>
                   )}
-                  {bVideo && <div style={{ textAlign: 'center', margin: '14px 0' }}><a href={bVideo} style={{ background: '#10b981', color: 'white', padding: '10px 22px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold', fontSize: '14px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>▶️ Ver Vídeo Oficial</a></div>}
-                  {/* Barra de progresso no email */}
-                  <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', margin: '18px 0 14px 0', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>📊 Progresso rumo a Dublin</div>
+                  {/* Vídeos preview */}
+                  {bVideos.length > 0 && (
+                    <div style={{ margin: '16px 0' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🎬 Vídeos</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {bVideos.map((v, i) => (
+                          <a key={i} href={v.url} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f5f3ff', padding: '12px 16px', borderRadius: '8px', textDecoration: 'none', border: '1px solid #e9d5ff' }}>
+                            <span style={{ fontSize: '22px' }}>{v.tipo.icon}</span>
+                            <div>
+                              <div style={{ fontWeight: 'bold', color: '#7c3aed', fontSize: '14px' }}>{v.descricao}</div>
+                              <div style={{ fontSize: '11px', color: '#a78bfa' }}>Clica para ver · {v.tipo.nome}</div>
+                            </div>
+                            <span style={{ marginLeft: 'auto', background: '#7c3aed', color: 'white', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold' }}>▶ Ver</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Redes sociais preview */}
+                  {bLinksRS.length > 0 && (
+                    <div style={{ margin: '16px 0' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📱 Redes Sociais da Flash Li</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {bLinksRS.map((rs, i) => (
+                          <a key={i} href={rs.url} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#fdf4ff', padding: '12px 16px', borderRadius: '8px', textDecoration: 'none', border: '1px solid #f0abfc' }}>
+                            <span style={{ fontSize: '22px' }}>{rs.tipo.icon}</span>
+                            <div>
+                              <div style={{ fontWeight: 'bold', color: '#a21caf', fontSize: '14px' }}>{rs.descricao}</div>
+                              <div style={{ fontSize: '11px', color: '#c026d3' }}>{rs.tipo.nome} · Clica para ver</div>
+                            </div>
+                            <span style={{ marginLeft: 'auto', background: '#a21caf', color: 'white', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold' }}>Ver Post</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Barra de progresso */}
+                  <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px 16px', margin: '18px 0 14px 0', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>📊 A nossa jornada para Dublin</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                       <span style={{ fontSize: '12px', color: '#334155', fontWeight: '600' }}>Meta de angariação</span>
                       <span style={{ fontSize: '12px', color: '#1a1a1a', fontWeight: 'bold' }}>{angariado.toLocaleString('pt-PT')}€ / {objetivo.toLocaleString('pt-PT')}€</span>
                     </div>
                     <div style={{ background: '#e2e8f0', borderRadius: '999px', height: '8px', overflow: 'hidden' }}>
-                      <div style={{ width: `${Math.min((angariado/objetivo)*100,100)}%`, background: 'linear-gradient(90deg,#d4af37,#f0cc60)', height: '100%', borderRadius: '999px' }}></div>
+                      <div style={{ width: `${Math.min((angariado/objetivo)*100, 100)}%`, background: 'linear-gradient(90deg,#d4af37,#f0cc60)', height: '100%', borderRadius: '999px' }}></div>
                     </div>
                     <div style={{ fontSize: '11px', color: '#64748b', marginTop: '5px' }}>{((angariado/objetivo)*100).toFixed(0)}% atingido • {totalAceites} parceiro(s) a bordo</div>
                   </div>
@@ -919,66 +1103,66 @@ export default function App() {
             </div>
           )}
 
-          {/* RESULTADO DO ENVIO */}
+          {/* ── RESULTADO ── */}
           {resultadoEnvio && (
             <div style={{ background: resultadoEnvio.falhados.length>0 ? '#fffbeb' : '#f0fdf4', padding: '20px', borderRadius: '12px', border: `1.5px solid ${resultadoEnvio.falhados.length>0 ? '#fcd34d' : '#4ade80'}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h3 style={{ margin: 0, color: '#334155', fontSize: '16px' }}>📊 Resultado do envio</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h3 style={{ margin: 0, color: '#334155', fontSize: '15px' }}>📊 Resultado do envio</h3>
                 <button onClick={() => setResultadoEnvio(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '18px', cursor: 'pointer' }}>✕</button>
               </div>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <span style={{ background: '#dcfce7', color: '#166534', padding: '6px 16px', borderRadius: '20px', fontWeight: 'bold', fontSize: '14px' }}>✅ {resultadoEnvio.enviados} enviados</span>
-                {resultadoEnvio.falhados.length>0 && <span style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 16px', borderRadius: '20px', fontWeight: 'bold', fontSize: '14px' }}>❌ {resultadoEnvio.falhados.length} falhados</span>}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <span style={{ background: '#dcfce7', color: '#166534', padding: '5px 14px', borderRadius: '20px', fontWeight: 'bold', fontSize: '13px' }}>✅ {resultadoEnvio.enviados} enviados</span>
+                {resultadoEnvio.falhados.length>0 && <span style={{ background: '#fee2e2', color: '#991b1b', padding: '5px 14px', borderRadius: '20px', fontWeight: 'bold', fontSize: '13px' }}>❌ {resultadoEnvio.falhados.length} falhados</span>}
               </div>
-              {resultadoEnvio.falhados.length>0 && <div style={{ marginTop: '12px' }}>{resultadoEnvio.falhados.map((f,i)=><div key={i} style={{ fontSize: '12px', color: '#7f1d1d', background: '#fee2e2', padding: '6px 10px', borderRadius: '6px', marginBottom: '4px' }}>{f}</div>)}</div>}
+              {resultadoEnvio.falhados.length>0 && <div style={{ marginTop: '10px' }}>{resultadoEnvio.falhados.map((f,i) => <div key={i} style={{ fontSize: '12px', color: '#7f1d1d', background: '#fee2e2', padding: '5px 10px', borderRadius: '6px', marginBottom: '3px' }}>{f}</div>)}</div>}
             </div>
           )}
 
-          {/* LINHA DO TEMPO */}
-          <div style={{ background: 'white', padding: '25px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, color: '#1a1a1a', fontSize: '18px', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* ── LINHA DO TEMPO ── */}
+          <div style={{ background: 'white', padding: '24px', borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <h3 style={{ margin: 0, color: '#1a1a1a', fontSize: '17px', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 🕰️ Histórico de Campanhas
-                <span style={{ background: '#f1f5f9', color: '#64748b', padding: '2px 10px', borderRadius: '20px', fontSize: '13px', fontWeight: 'normal' }}>{historico.length}</span>
+                <span style={{ background: '#f1f5f9', color: '#64748b', padding: '2px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'normal' }}>{historico.length}</span>
               </h3>
-              {historico.length>0 && <div style={{ fontSize: '13px', color: '#64748b' }}>Total: <strong>{historico.reduce((s,h)=>s+(h.total_destinatarios||0),0)}</strong> emails</div>}
+              {historico.length > 0 && <div style={{ fontSize: '13px', color: '#64748b' }}>Total: <strong>{historico.reduce((s,h) => s+(h.total_destinatarios||0), 0)}</strong> emails</div>}
             </div>
-            {historico.length===0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
-                <div style={{ fontSize: '40px', marginBottom: '12px' }}>📭</div>
-                <div style={{ fontStyle: 'italic' }}>Ainda não enviaste nenhuma campanha.<br/>O histórico aparecerá aqui após o primeiro envio.</div>
+            {historico.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '36px 20px', color: '#94a3b8' }}>
+                <div style={{ fontSize: '38px', marginBottom: '10px' }}>📭</div>
+                <div style={{ fontStyle: 'italic' }}>O histórico aparecerá aqui após o primeiro envio.</div>
               </div>
             ) : (
               <div style={{ position: 'relative' }}>
                 <div style={{ position: 'absolute', left: '18px', top: 0, bottom: 0, width: '2px', background: 'linear-gradient(to bottom,#d4af37,#e2e8f0)', borderRadius: '1px' }}></div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                  {historico.map((item,i) => (
-                    <div key={item.id||i} style={{ display: 'flex', gap: '18px', paddingBottom: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {historico.map((item, i) => (
+                    <div key={item.id||i} style={{ display: 'flex', gap: '16px', paddingBottom: '14px' }}>
                       <div style={{ flexShrink: 0, width: '38px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: i===0?'#d4af37':'white', border: `3px solid ${i===0?'#d4af37':'#e2e8f0'}`, marginTop: '14px', zIndex: 1 }}></div>
+                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: i===0 ? '#d4af37' : 'white', border: `3px solid ${i===0 ? '#d4af37' : '#e2e8f0'}`, marginTop: '13px', zIndex: 1 }}></div>
                       </div>
-                      <div style={{ flex: 1, background: i===0?'#fffdf0':'#f8fafc', borderRadius: '12px', padding: '15px', border: `1px solid ${i===0?'#d4af37':'#e2e8f0'}`, cursor: 'pointer' }}
+                      <div style={{ flex: 1, background: i===0 ? '#fffdf0' : '#f8fafc', borderRadius: '12px', padding: '14px', border: `1px solid ${i===0 ? '#d4af37' : '#e2e8f0'}`, cursor: 'pointer' }}
                         onClick={() => setHistoricoExpandido(historicoExpandido===item.id ? null : item.id)}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 'bold', color: '#1a1a1a', fontSize: '14px', marginBottom: '3px' }}>{item.assunto}</div>
-                            <div style={{ fontSize: '12px', color: '#94a3b8' }}>📅 {new Date(item.created_at).toLocaleDateString('pt-PT',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>📅 {new Date(item.created_at).toLocaleDateString('pt-PT', {day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
                           </div>
-                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
-                            <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold' }}>✉️ {item.total_destinatarios}</span>
-                            {item.foto_url && <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '3px 8px', borderRadius: '12px', fontSize: '11px' }}>📸</span>}
-                            {item.video_url && <span style={{ background: '#f0fdf4', color: '#15803d', padding: '3px 8px', borderRadius: '12px', fontSize: '11px' }}>▶️</span>}
-                            <span style={{ color: '#94a3b8', fontSize: '14px' }}>{historicoExpandido===item.id?'▲':'▼'}</span>
+                          <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexShrink: 0 }}>
+                            <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 9px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>✉️ {item.total_destinatarios}</span>
+                            {item.foto_url && <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 7px', borderRadius: '12px', fontSize: '11px' }}>📸</span>}
+                            {item.video_url && <span style={{ background: '#f5f3ff', color: '#7c3aed', padding: '2px 7px', borderRadius: '12px', fontSize: '11px' }}>🎬</span>}
+                            <span style={{ color: '#94a3b8', fontSize: '13px' }}>{historicoExpandido===item.id ? '▲' : '▼'}</span>
                           </div>
                         </div>
                         {historicoExpandido===item.id && (
                           <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-                            <div style={{ background: 'white', borderLeft: '3px solid #d4af37', padding: '11px 13px', borderRadius: '0 8px 8px 0', fontSize: '13px', lineHeight: '1.6', color: '#334155', whiteSpace: 'pre-wrap', marginBottom: item.foto_url||item.video_url?'10px':0 }}>
+                            <div style={{ background: 'white', borderLeft: '3px solid #d4af37', padding: '10px 13px', borderRadius: '0 8px 8px 0', fontSize: '13px', lineHeight: '1.6', color: '#334155', whiteSpace: 'pre-wrap', marginBottom: '10px' }}>
                               {item.mensagem}
                             </div>
                             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                              {item.foto_url && <a href={item.foto_url} target="_blank" style={{ fontSize: '12px', color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none', fontWeight: 'bold' }}>📸 Ver foto</a>}
-                              {item.video_url && <a href={item.video_url} target="_blank" style={{ fontSize: '12px', color: '#15803d', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none', fontWeight: 'bold' }}>▶️ Ver vídeo</a>}
+                              {item.foto_url && <a href={item.foto_url} target="_blank" style={{ fontSize: '12px', color: '#1d4ed8', fontWeight: 'bold', textDecoration: 'none' }}>📸 Ver foto</a>}
+                              {item.video_url && <a href={item.video_url} target="_blank" style={{ fontSize: '12px', color: '#7c3aed', fontWeight: 'bold', textDecoration: 'none' }}>🎬 Ver vídeo</a>}
                             </div>
                           </div>
                         )}
