@@ -7,7 +7,10 @@ export async function POST(request) {
     videos = [],
     linksRS = [],
     empresas,
-    tipoCampanha = 'novidade'
+    tipoCampanha = 'novidade',
+    totalAngariado = 0,
+    metaObjetivo = 3000,
+    totalParceiros = 0
   } = await request.json();
 
   if (!assunto?.trim()) return new Response(JSON.stringify({ error: 'O assunto não pode estar vazio.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
@@ -144,9 +147,9 @@ export async function POST(request) {
     <div style="background:#f8fafc;border-radius:12px;padding:18px 20px;margin:22px 0 18px 0;border:1px solid #e2e8f0;">
       <div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📊 A nossa jornada para Dublin</div>
       <div style="background:#e2e8f0;border-radius:999px;height:10px;overflow:hidden;margin-bottom:8px;">
-        <div style="width:${Math.min(100, Math.round((alvosValidos.reduce((s, e) => s + Number(e.valor || 0), 0) / 3000) * 100))}%;background:linear-gradient(90deg,#d4af37,#f0cc60);height:100%;border-radius:999px;"></div>
+        <div style="width:${Math.min(100, metaObjetivo > 0 ? Math.round((totalAngariado / metaObjetivo) * 100) : 0)}%;background:linear-gradient(90deg,#d4af37,#f0cc60);height:100%;border-radius:999px;"></div>
       </div>
-      <div style="font-size:12px;color:#64748b;">Obrigado por fazer parte desta equipa extraordinária!</div>
+      <div style="font-size:12px;color:#64748b;margin-top:6px;">${totalAngariado.toLocaleString("pt-PT")}€ angariados de ${metaObjetivo.toLocaleString("pt-PT")}€ · ${totalParceiros} parceiro(s) a bordo</div>
     </div>
 
     <!-- ASSINATURA -->
