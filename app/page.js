@@ -16,6 +16,13 @@ export default function App() {
   const [msg, setMsg] = useState('');
   const [msgType, setMsgType] = useState('info');
 
+  // === MULTI-PROJETO ===
+  const [projetos, setProjetos] = useState([]);
+  const [projetoAtivo, setProjetoAtivo] = useState(null); // objeto projeto completo
+  const [showProjetoModal, setShowProjetoModal] = useState(false);
+  const [editandoProjeto, setEditandoProjeto] = useState(null); // null = novo, objeto = editar
+  const [novoProj, setNovoProj] = useState({ nome:'', evento:'DWCup', ano: new Date().getFullYear()+1, cidade:'', pais:'', bandeira:'🏳️', meta_objetivo:3000, atletas:'', escola:'Flash Li Dance School', gestor:'Hugo', gestor_whatsapp:'+351 924 368 517', dossier_url:'', url_base:'https://flash-li-patrocinios.vercel.app' });
+
   const [objetivo, setObjetivo] = useState(3000);
 
   // === ESTADOS DO FORMULÁRIO E EDIÇÃO ===
@@ -63,31 +70,99 @@ export default function App() {
   const PRIMARY_COLOR = '#d4af37'; 
   const TEXT_PRIMARY = '#1a1a1a'; 
 
+  // Carregar projetos ao iniciar
   useEffect(() => {
+    fetchProjetos();
+    // textos WhatsApp carregados ao mudar projeto (ver useEffect de projetoAtivo)
+  }, []);
+
+  // Quando projeto muda, carregar dados e atualizar textos
+  useEffect(() => {
+    if (!projetoAtivo) return;
     fetchEmpresas();
     fetchHistorico();
-    
-    const savedGoal = localStorage.getItem('metaFlashLi');
-    if(savedGoal) setObjetivo(Number(savedGoal));
-    
-    if(localStorage.getItem('wappPropPT')) setMsgPropostaPT(localStorage.getItem('wappPropPT'));
-    if(localStorage.getItem('wappPropES')) setMsgPropostaES(localStorage.getItem('wappPropES'));
-    if(localStorage.getItem('wappFollPT')) setMsgFollowPT(localStorage.getItem('wappFollPT'));
-    if(localStorage.getItem('wappFollES')) setMsgFollowES(localStorage.getItem('wappFollES'));
-  }, []);
+    setObjetivo(projetoAtivo.meta_objetivo || 3000);
+    localStorage.setItem('projetoAtivoId', projetoAtivo.id);
+    // Carregar textos WhatsApp guardados para este projeto, ou gerar defaults
+    const key = projetoAtivo.id;
+    setMsgPropostaPT(localStorage.getItem('wapp_' + key + '_propPT') || getDefaultPropPT());
+    setMsgPropostaES(localStorage.getItem('wapp_' + key + '_propES') || getDefaultPropES());
+    setMsgFollowPT(localStorage.getItem('wapp_' + key + '_follPT') || getDefaultFollPT());
+    setMsgFollowES(localStorage.getItem('wapp_' + key + '_follES') || getDefaultFollES());
+  }, [projetoAtivo?.id]);
+
+  async function fetchProjetos() {
+    const { data, error } = await supabase.from('projetos').select('*').order('ano', { ascending: false });
+    if (!error && data && data.length > 0) {
+      setProjetos(data);
+      // Restaurar último projeto selecionado, ou usar o primeiro
+      const savedId = localStorage.getItem('projetoAtivoId');
+      const saved = savedId ? data.find(p => p.id === savedId) : null;
+      setProjetoAtivo(saved || data[0]);
+    } else if (!error && data && data.length === 0) {
+      // Sem projetos ainda — mostrar modal de criação
+      setProjetos([]);
+      setProjetoAtivo(null);
+      setLoading(false);
+    }
+  }
+
+  async function guardarProjeto(e) {
+    e.preventDefault();
+    const dados = editandoProjeto ? { ...novoProj } : { ...novoProj };
+    if (!dados.nome || !dados.cidade || !dados.pais) return showMessage('Nome, cidade e país são obrigatórios.', 'error');
+    dados.nome = dados.nome || `${dados.evento} ${dados.ano} ${dados.cidade}`;
+    showMessage('A guardar projeto...', 'info');
+    let result;
+    if (editandoProjeto) {
+      result = await supabase.from('projetos').update(dados).eq('id', editandoProjeto.id).select().single();
+    } else {
+      result = await supabase.from('projetos').insert([dados]).select().single();
+    }
+    if (result.error) return showMessage('Erro: ' + result.error.message, 'error');
+    showMessage('✅ Projeto guardado!', 'success');
+    setShowProjetoModal(false);
+    await fetchProjetos();
+    if (!editandoProjeto) setProjetoAtivo(result.data);
+    else if (projetoAtivo?.id === editandoProjeto.id) setProjetoAtivo(result.data);
+    setEditandoProjeto(null);
+  }
+
+  async function eliminarProjeto(proj) {
+    if (!window.confirm(`Eliminar "${proj.nome}" e TODOS os seus patrocinadores e campanhas? Esta ação é irreversível.`)) return;
+    const { error } = await supabase.from('projetos').delete().eq('id', proj.id);
+    if (error) return showMessage('Erro: ' + error.message, 'error');
+    showMessage('🗑️ Projeto eliminado.', 'success');
+    await fetchProjetos();
+  }
+
+  function abrirNovoProj() {
+    setEditandoProjeto(null);
+    setNovoProj({ nome:'', evento:'DWCup', ano: new Date().getFullYear()+1, cidade:'', pais:'', bandeira:'🏳️', meta_objetivo:3000, atletas:'', escola:'Flash Li Dance School', gestor:'Hugo', gestor_whatsapp:'+351 924 368 517', dossier_url:'', url_base:'https://flash-li-patrocinios.vercel.app' });
+    setShowProjetoModal(true);
+  }
+
+  function abrirEditarProj(proj) {
+    setEditandoProjeto(proj);
+    setNovoProj({ ...proj });
+    setShowProjetoModal(true);
+  }
 
   function handleMetaChange(val) {
     const num = Number(val) || 0;
     setObjetivo(num);
-    localStorage.setItem('metaFlashLi', num);
+    if (projetoAtivo) {
+      supabase.from('projetos').update({ meta_objetivo: num }).eq('id', projetoAtivo.id);
+    }
   }
 
   function guardarSettings(e) {
     e.preventDefault();
-    localStorage.setItem('wappPropPT', msgPropostaPT);
-    localStorage.setItem('wappPropES', msgPropostaES);
-    localStorage.setItem('wappFollPT', msgFollowPT);
-    localStorage.setItem('wappFollES', msgFollowES);
+    const key = projetoAtivo?.id || 'global';
+    localStorage.setItem('wapp_' + key + '_propPT', msgPropostaPT);
+    localStorage.setItem('wapp_' + key + '_propES', msgPropostaES);
+    localStorage.setItem('wapp_' + key + '_follPT', msgFollowPT);
+    localStorage.setItem('wapp_' + key + '_follES', msgFollowES);
     setShowSettings(false);
     showMessage('✅ Textos do WhatsApp guardados com sucesso!', 'success');
   }
@@ -99,15 +174,17 @@ export default function App() {
   }
 
   async function fetchEmpresas() {
+    if (!projetoAtivo) return;
     setLoading(true);
-    const { data, error } = await supabase.from('patrocinadores').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('patrocinadores').select('*').eq('projeto_id', projetoAtivo.id).order('created_at', { ascending: false });
     if (error) showMessage('❌ Erro ao carregar dados: ' + error.message, 'error');
     else if (data) setEmpresas(data);
     setLoading(false);
   }
 
   async function fetchHistorico() {
-    const { data, error } = await supabase.from('historico_novidades').select('*').order('created_at', { ascending: false });
+    if (!projetoAtivo) return;
+    const { data, error } = await supabase.from('historico_novidades').select('*').eq('projeto_id', projetoAtivo.id).order('created_at', { ascending: false });
     if (!error && data) setHistorico(data);
   }
 
@@ -117,7 +194,9 @@ export default function App() {
     if (!nome) return showMessage('O Nome da empresa é obrigatório!', 'error');
     if (!email && !telefone) return showMessage('Tens de colocar ou o Email ou o Telefone!', 'error');
     showMessage('A adicionar parceiro...', 'info');
+    if (!projetoAtivo) return showMessage('Seleciona um projeto primeiro!', 'error');
     const novaEmpresa = { 
+      projeto_id: projetoAtivo.id,
       nome, email: email || null, telefone: telefone || null, idioma, status: 'Pendente', data_followup: dataFollowup || null,
       valor: 0, recibo_enviado: false, logo_recebido: false, redes_sociais: false, notas: ''
     };
@@ -167,7 +246,7 @@ export default function App() {
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A enviar proposta por email para ${empresa.nome}...`, 'info');
     try {
-      const res = await fetch('/api/send-proposal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(empresa) });
+      const res = await fetch('/api/send-proposal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, pais: projetoAtivo?.pais, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, dossier_url: projetoAtivo?.dossier_url, url_base: projetoAtivo?.url_base } }) });
       if (res.ok) { showMessage(`✅ Email Enviado com sucesso!`, 'success'); updateCampo(empresa.id, 'proposta_enviada_em', new Date().toISOString()); } 
       else showMessage(`❌ Falha no envio`, 'error');
     } catch (err) { showMessage('Erro técnico.', 'error'); }
@@ -177,7 +256,7 @@ export default function App() {
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A pedir dados e logo a ${empresa.nome}...`, 'info');
     try {
-      const res = await fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(empresa) });
+      const res = await fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, url_base: projetoAtivo?.url_base } }) });
       if (res.ok) showMessage(`✅ Pedido enviado com sucesso!`, 'success'); else showMessage(`❌ Falha no envio do pedido`, 'error');
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
@@ -319,7 +398,7 @@ export default function App() {
       const res = await fetch('/api/send-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: primeiraFoto, fotosExtras: fotosUrls.slice(1), videos: bVideos, linksRS: bLinksRS, empresas: alvosComEmail, tipoCampanha: bTipoCampanha, totalAngariado: angariado, metaObjetivo: objetivo, totalParceiros: totalAceites })
+        body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: primeiraFoto, fotosExtras: fotosUrls.slice(1), videos: bVideos, linksRS: bLinksRS, empresas: alvosComEmail, tipoCampanha: bTipoCampanha, totalAngariado: angariado, metaObjetivo: objetivo, totalParceiros: totalAceites, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, pais: projetoAtivo?.pais, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, url_base: projetoAtivo?.url_base } })
       });
 
       const json = await res.json();
@@ -330,6 +409,7 @@ export default function App() {
         showMessage(`✅ ${json.enviados}/${json.total} emails enviados!${temFalhas ? ' (alguns falharam)' : ''}`, temFalhas ? 'warning' : 'success');
 
         const { data: novoHistorico } = await supabase.from('historico_novidades').insert([{
+          projeto_id: projetoAtivo?.id,
           assunto: bAssunto, mensagem: bMensagem,
           foto_url: primeiraFoto || null,
           video_url: (bVideos.length > 0 ? bVideos[0].url : bVideo) || null,
@@ -404,7 +484,20 @@ export default function App() {
   else if (sortBy === 'nome') empresasFiltradas.sort((a, b) => a.nome.localeCompare(b.nome));
   else empresasFiltradas.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
-  if (loading) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>A carregar Super App... ⏳</div>;
+  // Sem projetos — mostrar ecrã de boas-vindas
+  if (!loading && projetos.length === 0) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', fontFamily: 'sans-serif', padding: '20px' }}>
+      <div style={{ background: 'white', borderRadius: '20px', padding: '50px 40px', maxWidth: '480px', width: '100%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.1)', borderTop: '6px solid #d4af37' }}>
+        <div style={{ fontSize: '56px', marginBottom: '16px' }}>🩰</div>
+        <h1 style={{ color: '#1a1a1a', fontSize: '24px', fontWeight: '900', margin: '0 0 10px 0' }}>FlashLi Patrocínios</h1>
+        <p style={{ color: '#64748b', marginBottom: '30px' }}>Ainda não tens nenhum projeto. Cria o primeiro para começar!</p>
+        <button onClick={abrirNovoProj} style={{ background: '#1a1a1a', color: '#d4af37', padding: '16px 32px', borderRadius: '12px', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>+ Criar Primeiro Projeto</button>
+        {showProjetoModal && <ModalProjeto />}
+      </div>
+    </div>
+  );
+
+  if (loading) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>A carregar... ⏳</div>;
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '15px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
@@ -509,17 +602,61 @@ export default function App() {
         </div>
       )}
 
+      {/* --- MODAL PROJETO --- */}
+      {showProjetoModal && (
+        <div className="modal-overlay no-print" onClick={() => setShowProjetoModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #f1f5f9', paddingBottom: '15px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px', color: TEXT_PRIMARY }}>🗂️ {editandoProjeto ? 'Editar Projeto' : 'Novo Projeto'}</h2>
+              <button onClick={() => setShowProjetoModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
+            </div>
+            <form onSubmit={guardarProjeto}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>Nome do Projeto (automático se vazio)</label>
+                  <input type="text" placeholder="ex: DWCup 2027 Lisboa" value={novoProj.nome} onChange={e => setNovoProj({...novoProj, nome: e.target.value})} />
+                </div>
+                <div className="form-group"><label>Evento</label><input type="text" required value={novoProj.evento} onChange={e => setNovoProj({...novoProj, evento: e.target.value})} /></div>
+                <div className="form-group"><label>Ano</label><input type="number" required value={novoProj.ano} onChange={e => setNovoProj({...novoProj, ano: Number(e.target.value)})} /></div>
+                <div className="form-group"><label>Cidade</label><input type="text" required placeholder="ex: Lisboa" value={novoProj.cidade} onChange={e => setNovoProj({...novoProj, cidade: e.target.value})} /></div>
+                <div className="form-group"><label>País</label><input type="text" required placeholder="ex: Portugal" value={novoProj.pais} onChange={e => setNovoProj({...novoProj, pais: e.target.value})} /></div>
+                <div className="form-group"><label>Bandeira (emoji)</label><input type="text" value={novoProj.bandeira} onChange={e => setNovoProj({...novoProj, bandeira: e.target.value})} style={{ fontSize: '24px' }} /></div>
+                <div className="form-group"><label>Meta (€)</label><input type="number" value={novoProj.meta_objetivo} onChange={e => setNovoProj({...novoProj, meta_objetivo: Number(e.target.value)})} /></div>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}><label>Atletas (separadas por vírgula)</label><input type="text" placeholder="Matilde Mota, Ana Silva" value={novoProj.atletas} onChange={e => setNovoProj({...novoProj, atletas: e.target.value})} /></div>
+                <div className="form-group"><label>Escola</label><input type="text" value={novoProj.escola} onChange={e => setNovoProj({...novoProj, escola: e.target.value})} /></div>
+                <div className="form-group"><label>Gestor (nome)</label><input type="text" value={novoProj.gestor} onChange={e => setNovoProj({...novoProj, gestor: e.target.value})} /></div>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}><label>URL do Dossier (PDF)</label><input type="text" placeholder="https://..." value={novoProj.dossier_url} onChange={e => setNovoProj({...novoProj, dossier_url: e.target.value})} /></div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button type="button" onClick={() => setShowProjetoModal(false)} className="btn-hover" style={{ flex: 1, padding: '12px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+                <button type="submit" className="btn-hover" style={{ flex: 2, padding: '12px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>💾 Guardar Projeto</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* --- CABEÇALHO --- */}
       <header className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px', background: 'white', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderTop: `6px solid ${PRIMARY_COLOR}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <img src="/logo.jpg" alt="Logotipo Oficial" style={{ width: '65px', borderRadius: '12px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} />
+            <div style={{ fontSize: '42px', lineHeight: 1 }}>{projetoAtivo?.bandeira || '🩰'}</div>
             <div>
-              <h1 style={{ color: TEXT_PRIMARY, margin: 0, fontSize: '22px', fontWeight: '900' }}>ANGARIAÇÃO DWCUP</h1>
-              <h2 style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '14px', fontWeight: '500' }}>Flash Li Dance School • Dublin 2026</h2>
+              <h1 style={{ color: TEXT_PRIMARY, margin: 0, fontSize: '20px', fontWeight: '900' }}>ANGARIAÇÃO {(projetoAtivo?.evento || 'EVENTO').toUpperCase()} {projetoAtivo?.ano}</h1>
+              <h2 style={{ color: '#64748b', margin: '3px 0 0 0', fontSize: '13px', fontWeight: '500' }}>{projetoAtivo?.escola} • {projetoAtivo?.cidade}, {projetoAtivo?.pais}</h2>
+              {projetoAtivo?.atletas && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>🩰 {projetoAtivo.atletas}</div>}
             </div>
           </div>
-          <button onClick={() => setShowSettings(true)} className="btn-hover" style={{ background: '#f1f5f9', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer', color: '#475569' }} title="Configurar Textos do WhatsApp"><Settings size={20}/></button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* SELECTOR DE PROJETO */}
+            <select value={projetoAtivo?.id || ''} onChange={e => { const p = projetos.find(x => x.id === e.target.value); if (p) { setProjetoAtivo(p); setEmpresas([]); setHistorico([]); } }}
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '2px solid #d4af37', background: 'white', fontWeight: 'bold', color: TEXT_PRIMARY, fontSize: '13px', cursor: 'pointer' }}>
+              {projetos.map(p => <option key={p.id} value={p.id}>{p.bandeira} {p.nome}</option>)}
+            </select>
+            <button onClick={abrirNovoProj} className="btn-hover" title="Novo Projeto" style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#166534', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>+ Projeto</button>
+            {projetoAtivo && <button onClick={() => abrirEditarProj(projetoAtivo)} className="btn-hover" title="Editar Projeto Atual" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', color: '#475569', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}><Settings size={16}/></button>}
+            <button onClick={() => setShowSettings(true)} className="btn-hover" style={{ background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', color: '#475569' }} title="Textos WhatsApp"><MessageCircle size={16}/></button>
+          </div>
         </div>
         
         {/* NAVEGAÇÃO COM 4 ABAS */}

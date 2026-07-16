@@ -10,7 +10,17 @@ function esc(str) {
 }
 
 export async function POST(request) {
-  const empresa = await request.json();
+  const payload = await request.json();
+  const empresa = payload;
+  const proj = payload.projeto || {};
+  const linkDossier = proj.dossier_url || "https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf";
+  const baseUrl = proj.url_base || "https://flash-li-patrocinios.vercel.app";
+  const evento = proj.evento || "DWCup";
+  const ano = proj.ano || 2026;
+  const cidade = proj.cidade || "Dublin";
+  const bandeira = proj.bandeira || "🇮🇪";
+  const escola = proj.escola || "Flash Li Dance School";
+  const gestor = proj.gestor || "Hugo";
 
   // BUG 8 + 9 — Validações obrigatórias
   if (!empresa.email) {
@@ -19,9 +29,6 @@ export async function POST(request) {
   if (!empresa.id) {
     return new Response(JSON.stringify({ error: 'ID da empresa em falta — os botões de resposta não funcionariam.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
-
-  const linkDossier = "https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf";
-  const baseUrl = "https://flash-li-patrocinios.vercel.app";
 
   const isES = empresa.idioma === 'ES';
 
@@ -37,7 +44,7 @@ export async function POST(request) {
 
   <div style="background:#1a1a1a;padding:26px 28px;text-align:center;border-bottom:4px solid #d4af37;">
     <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">Flash Li Dance School</div>
-    <div style="color:white;font-weight:900;font-size:20px;">Dance World Cup 2026 🇮🇪</div>
+    <div style="color:white;font-weight:900;font-size:20px;">${evento} ${ano} ${bandeira}</div>
     <div style="color:#d4af37;font-size:13px;margin-top:4px;">Dublin, Julho 2026</div>
   </div>
 
@@ -56,7 +63,7 @@ export async function POST(request) {
       <div style="font-size:13px;font-weight:bold;color:#166534;margin-bottom:8px;">🏆 ${isES ? 'Nuestros resultados más recientes' : 'Os nossos resultados mais recentes'}</div>
       <ul style="margin:0;padding-left:18px;color:#15803d;font-size:14px;line-height:1.8;">
         <li>${isES ? '24 podios y <strong>15 Medallas de Oro</strong> en la final nacional' : '24 pódios e <strong>15 Medalhas de Ouro</strong> na final nacional'}</li>
-        <li>${isES ? 'Clasificados para representar a Portugal en Dublín 2026' : 'Apurados para representar Portugal em Dublin 2026'}</li>
+        <li>${isES ? 'Clasificados para representar a Portugal en Dublín 2026' : 'Apurados para representar Portugal em ${cidade} ${ano}'}</li>
       </ul>
     </div>
 
@@ -92,13 +99,13 @@ export async function POST(request) {
     <div style="border-top:1px solid #e2e8f0;padding-top:20px;margin-top:28px;">
       <p style="color:#64748b;font-size:13px;margin:0 0 4px 0;">${isES ? 'Quedo a su disposición. ¡Muchas gracias!' : 'Fico ao vosso dispor. Muito obrigado!'}</p>
       <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:6px 0 2px 0;">Hugo Mota</p>
-      <p style="color:#94a3b8;font-size:12px;margin:0;">${isES ? 'Padre de Matilde Mota — Flash Li Dance School' : 'Pai da Matilde Mota — Flash Li Dance School'}<br/>
+      <p style="color:#94a3b8;font-size:12px;margin:0;">${isES ? '${gestor} — ${escola}' : '${gestor} — ${escola}'}<br/>
       📱 WhatsApp: +351 924 368 517</p>
     </div>
   </div>
 
   <div style="background:#f8fafc;padding:12px 28px;text-align:center;border-top:1px solid #e2e8f0;">
-    <div style="font-size:11px;color:#94a3b8;">Flash Li Dance School • Dublin 2026 🇮🇪 • flash-li-patrocinios.vercel.app</div>
+    <div style="font-size:11px;color:#94a3b8;">Flash Li Dance School • ${cidade} ${ano} 🇮🇪 • flash-li-patrocinios.vercel.app</div>
   </div>
 </div>
 </body>
@@ -117,7 +124,7 @@ export async function POST(request) {
 
   try {
     await transporter.sendMail({
-      from: `"Hugo - Flash Li Dance School" <${process.env.EMAIL_USER}>`,
+      from: `"${gestor} - ${escola}" <${process.env.EMAIL_USER}>`,
       to: empresa.email,
       subject: assunto,
       html: corpoHTML,

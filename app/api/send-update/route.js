@@ -28,8 +28,16 @@ export async function POST(request) {
     tipoCampanha = 'novidade',
     totalAngariado = 0,
     metaObjetivo = 3000,
-    totalParceiros = 0
+    totalParceiros = 0,
+    projeto = {}
   } = await request.json();
+  const evento = projeto.evento || "DWCup";
+  const ano = projeto.ano || 2026;
+  const cidade = projeto.cidade || "Dublin";
+  const bandeira = projeto.bandeira || "🇮🇪";
+  const escola = projeto.escola || "Flash Li Dance School";
+  const gestor = projeto.gestor || "Hugo";
+  const baseUrl = projeto.url_base || "https://flash-li-patrocinios.vercel.app";
 
   if (!assunto?.trim()) return new Response(JSON.stringify({ error: 'O assunto não pode estar vazio.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   if (!mensagem?.trim()) return new Response(JSON.stringify({ error: 'A mensagem não pode estar vazia.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
@@ -125,7 +133,7 @@ export async function POST(request) {
   for (const empresa of alvosValidos) {
     try {
       await transporter.sendMail({
-        from: `"Flash Li Dance School" <${process.env.EMAIL_USER}>`,
+        from: `"${escola}" <${process.env.EMAIL_USER}>`,
         to: empresa.email,
         subject: esc(assunto),
         html: `
@@ -136,8 +144,8 @@ export async function POST(request) {
 
   <div style="background:#1a1a1a;padding:26px 28px;text-align:center;border-bottom:4px solid #d4af37;">
     <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">Flash Li Dance School</div>
-    <div style="color:white;font-weight:900;font-size:20px;letter-spacing:0.5px;">Diário de Bordo 🇮🇪</div>
-    <div style="color:#d4af37;font-size:12px;margin-top:4px;">Dublin 2026 — DWCup</div>
+    <div style="color:white;font-weight:900;font-size:20px;letter-spacing:0.5px;">Diário de Bordo ${bandeira}</div>
+    <div style="color:#d4af37;font-size:12px;margin-top:4px;">${cidade} ${ano} — ${evento}</div>
   </div>
 
   <div style="background:${tc.bg};padding:9px 28px;border-bottom:1px solid ${tc.cor}33;">
@@ -166,12 +174,12 @@ export async function POST(request) {
     <div style="border-top:1px solid #e2e8f0;padding-top:18px;">
       <p style="color:#64748b;font-size:13px;margin:0 0 2px 0;">Com os melhores cumprimentos,</p>
       <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:5px 0 2px 0;">Hugo Mota</p>
-      <p style="color:#94a3b8;font-size:12px;margin:0;">Gestão de Patrocínios — Flash Li Dance School</p>
+      <p style="color:#94a3b8;font-size:12px;margin:0;">Gestão de Patrocínios — ${escola}</p>
     </div>
   </div>
 
   <div style="background:#f8fafc;padding:13px 28px;text-align:center;border-top:1px solid #e2e8f0;">
-    <div style="font-size:11px;color:#94a3b8;">Flash Li Dance School • Dublin 2026 🇮🇪 • flash-li-patrocinios.vercel.app</div>
+    <div style="font-size:11px;color:#94a3b8;">Flash Li Dance School • ${cidade} ${ano} ${bandeira} • flash-li-patrocinios.vercel.app</div>
   </div>
 
 </div>

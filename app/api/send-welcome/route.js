@@ -10,7 +10,16 @@ function esc(str) {
 }
 
 export async function POST(request) {
-  const empresa = await request.json();
+  const payload = await request.json();
+  const empresa = payload;
+  const proj = payload.projeto || {};
+  const evento = proj.evento || "DWCup";
+  const ano = proj.ano || 2026;
+  const cidade = proj.cidade || "Dublin";
+  const bandeira = proj.bandeira || "🇮🇪";
+  const escola = proj.escola || "Flash Li Dance School";
+  const gestor = proj.gestor || "Hugo";
+  const baseUrl = proj.url_base || "https://flash-li-patrocinios.vercel.app";
 
   if (!empresa.email) {
     return new Response(JSON.stringify({ error: 'Email em falta.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
@@ -38,7 +47,7 @@ export async function POST(request) {
   <div style="background:#1a1a1a;padding:26px 28px;text-align:center;border-bottom:4px solid #d4af37;">
     <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;">Flash Li Dance School</div>
     <div style="color:white;font-weight:900;font-size:20px;">Obrigado pelo vosso apoio! 🏆</div>
-    <div style="color:#d4af37;font-size:13px;margin-top:4px;">Dublin 2026 — DWCup</div>
+    <div style="color:#d4af37;font-size:13px;margin-top:4px;">${cidade} ${ano} — ${evento}</div>
   </div>
 
   <div style="padding:30px;">
@@ -47,7 +56,7 @@ export async function POST(request) {
     </p>
 
     <p style="font-size:14px;line-height:1.7;color:#475569;margin:0 0 14px 0;">
-      É com enorme alegria que vos damos as <strong>boas-vindas à nossa equipa de patrocinadores oficiais</strong> rumo ao Campeonato do Mundo DWCup 2026 em Dublin! 🇮🇪
+      É com enorme alegria que vos damos as <strong>boas-vindas à nossa equipa de patrocinadores oficiais</strong> rumo ao Campeonato do Mundo ${evento} ${ano} em ${cidade}! 🇮🇪
     </p>
 
     <p style="font-size:14px;line-height:1.7;color:#475569;margin:0 0 20px 0;">
@@ -81,13 +90,13 @@ export async function POST(request) {
     <div style="border-top:1px solid #e2e8f0;padding-top:20px;margin-top:28px;">
       <p style="color:#64748b;font-size:13px;margin:0 0 4px 0;">Com os melhores cumprimentos e um enorme obrigado,</p>
       <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:6px 0 2px 0;">Hugo Mota</p>
-      <p style="color:#94a3b8;font-size:12px;margin:0;">Pai da Matilde Mota — Flash Li Dance School<br/>
+      <p style="color:#94a3b8;font-size:12px;margin:0;">${gestor} — ${escola}<br/>
       📱 WhatsApp: +351 924 368 517</p>
     </div>
   </div>
 
   <div style="background:#f8fafc;padding:12px 28px;text-align:center;border-top:1px solid #e2e8f0;">
-    <div style="font-size:11px;color:#94a3b8;">Flash Li Dance School • Dublin 2026 🇮🇪 • flash-li-patrocinios.vercel.app</div>
+    <div style="font-size:11px;color:#94a3b8;">Flash Li Dance School • ${cidade} ${ano} 🇮🇪 • flash-li-patrocinios.vercel.app</div>
   </div>
 </div>
 </body>
@@ -95,7 +104,7 @@ export async function POST(request) {
 
   try {
     await transporter.sendMail({
-      from: `"Hugo - Flash Li Dance School" <${process.env.EMAIL_USER}>`,
+      from: `"${gestor} - ${escola}" <${process.env.EMAIL_USER}>`,
       to: empresa.email,
       subject: assunto,
       html: corpoHTML,
