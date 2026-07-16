@@ -21,7 +21,7 @@ export default function App() {
   const [projetoAtivo, setProjetoAtivo] = useState(null); // objeto projeto completo
   const [showProjetoModal, setShowProjetoModal] = useState(false);
   const [editandoProjeto, setEditandoProjeto] = useState(null); // null = novo, objeto = editar
-  const [novoProj, setNovoProj] = useState({ nome:'', evento:'DWCup', ano: new Date().getFullYear()+1, cidade:'', pais:'', bandeira:'🏳️', meta_objetivo:3000, atletas:'', escola:'Flash Li Dance School', gestor:'Hugo', gestor_whatsapp:'+351 924 368 517', dossier_url:'', url_base:'https://flash-li-patrocinios.vercel.app' });
+  const [novoProj, setNovoProj] = useState({ nome:'', evento:'', ano: new Date().getFullYear()+1, cidade:'', pais:'', bandeira:'🏳️', meta_objetivo:3000, atletas:'', escola:'Flash Li Dance School', gestor:'Hugo', gestor_whatsapp:'+351 924 368 517', dossier_url:'', url_base:'https://flash-li-patrocinios.vercel.app' });
 
   const [objetivo, setObjetivo] = useState(3000);
 
@@ -57,15 +57,29 @@ export default function App() {
   // === CONFIGURAÇÕES GLOBAIS (WHATSAPP) ===
   const [showSettings, setShowSettings] = useState(false);
   
-  const defaultPropPT = `Olá! Sou o Hugo, pai da atleta Matilde Mota (Flash Li Dance School).\n\nEstamos à procura de parceiros para apoiar a nossa equipa rumo ao Campeonato do Mundo de Dança (DWCup 2026) em Dublin. 🇮🇪\n\nDeixo aqui o nosso dossier com a história da Matilde e as propostas de visibilidade para a *{nome}*:\n📄 https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf\n\nGostaria muito de saber a vossa opinião! Muito obrigado.`;
-  const defaultPropES = `¡Hola! Soy Hugo, padre de la atleta Matilde Mota (Flash Li Dance School).\n\nEstamos buscando socios para apoyar a nuestro equipo rumbo al Campeonato Mundial de Danza (DWCup 2026) en Dublín. 🇮🇪\n\nLe dejo aquí nuestro dossier con la historia de Matilde y las propuestas de visibilidad para *{nome}*:\n📄 https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf\n\n¡Me gustaría mucho saber su opinión! Muchas gracias.`;
-  const defaultFollPT = `Olá! Sou o Hugo, da Flash Li Dance School.\n\nEntrámos recentemente em contacto com a *{nome}* para uma parceria rumo a Dublin 🇮🇪.\n\nGostava apenas de saber se tiveram oportunidade de analisar o nosso dossier ou se precisam de alguma informação adicional da minha parte.\n\nMuito obrigado pelo vosso tempo!`;
-  const defaultFollES = `¡Hola! Soy Hugo, de Flash Li Dance School.\n\nRecientemente nos pusimos en contacto con *{nome}* para una colaboración rumbo a Dublín 🇮🇪.\n\nMe gustaría saber si tuvieron la oportunidad de analizar nuestro dossier o si necesitan alguna información adicional.\n\n¡Muchas gracias por su tiempo!`;
+  // Funções para gerar textos padrão do WhatsApp baseados no projeto ativo
+  // (definidas como funções normais, não arrow, para poderem usar projetoAtivo do closure)
+  function getDefaultPropPT(p) {
+    const proj = p || projetoAtivo || {};
+    return `Olá! Sou o ${proj.gestor || 'Hugo'}, da ${proj.escola || 'Flash Li Dance School'}.\n\nEstamos à procura de parceiros para apoiar a nossa equipa rumo ao ${proj.nome || 'campeonato'} em ${proj.cidade || 'destino'}. ${proj.bandeira || '🩰'}\n\nDeixo aqui o nosso dossier com mais detalhes e as propostas de visibilidade para a *{nome}*:\n📄 ${proj.dossier_url || (proj.url_base || 'https://flash-li-patrocinios.vercel.app')}\n\nGostaria muito de saber a vossa opinião! Muito obrigado.`;
+  }
+  function getDefaultPropES(p) {
+    const proj = p || projetoAtivo || {};
+    return `¡Hola! Soy ${proj.gestor || 'Hugo'}, de ${proj.escola || 'Flash Li Dance School'}.\n\nEstamos buscando socios para apoyar a nuestro equipo de cara a ${proj.nome || 'la competición'} en ${proj.cidade || 'destino'}. ${proj.bandeira || '🩰'}\n\nLe dejo aquí nuestro dossier con más detalles y las propuestas de visibilidad para *{nome}*:\n📄 ${proj.dossier_url || (proj.url_base || 'https://flash-li-patrocinios.vercel.app')}\n\n¡Me gustaría mucho saber su opinión! Muchas gracias.`;
+  }
+  function getDefaultFollPT(p) {
+    const proj = p || projetoAtivo || {};
+    return `Olá! Sou o ${proj.gestor || 'Hugo'}, da ${proj.escola || 'Flash Li Dance School'}.\n\nEntrámos recentemente em contacto com a *{nome}* para uma parceria rumo ao ${proj.nome || 'campeonato'}. ${proj.bandeira || '🩰'}\n\nGostava de saber se tiveram oportunidade de analisar o nosso dossier ou se precisam de informação adicional.\n\nMuito obrigado pelo vosso tempo!`;
+  }
+  function getDefaultFollES(p) {
+    const proj = p || projetoAtivo || {};
+    return `¡Hola! Soy ${proj.gestor || 'Hugo'}, de ${proj.escola || 'Flash Li Dance School'}.\n\nRecientemente contactamos con *{nome}* para una colaboración de cara a ${proj.nome || 'la competición'}. ${proj.bandeira || '🩰'}\n\nMe gustaría saber si pudieron revisar nuestro dossier o si necesitan información adicional.\n\n¡Muchas gracias por su tiempo!`;
+  }
 
-  const [msgPropostaPT, setMsgPropostaPT] = useState(defaultPropPT);
-  const [msgPropostaES, setMsgPropostaES] = useState(defaultPropES);
-  const [msgFollowPT, setMsgFollowPT] = useState(defaultFollPT);
-  const [msgFollowES, setMsgFollowES] = useState(defaultFollES);
+  const [msgPropostaPT, setMsgPropostaPT] = useState('');
+  const [msgPropostaES, setMsgPropostaES] = useState('');
+  const [msgFollowPT, setMsgFollowPT] = useState('');
+  const [msgFollowES, setMsgFollowES] = useState('');
 
   const PRIMARY_COLOR = '#d4af37'; 
   const TEXT_PRIMARY = '#1a1a1a'; 
@@ -79,16 +93,19 @@ export default function App() {
   // Quando projeto muda, carregar dados e atualizar textos
   useEffect(() => {
     if (!projetoAtivo) return;
-    fetchEmpresas(projetoAtivo);
-    fetchHistorico(projetoAtivo);
-    setObjetivo(projetoAtivo.meta_objetivo || 3000);
-    localStorage.setItem('projetoAtivoId', projetoAtivo.id);
-    // Carregar textos WhatsApp guardados para este projeto, ou gerar defaults
-    const key = projetoAtivo.id;
-    setMsgPropostaPT(localStorage.getItem('wapp_' + key + '_propPT') || getDefaultPropPT());
-    setMsgPropostaES(localStorage.getItem('wapp_' + key + '_propES') || getDefaultPropES());
-    setMsgFollowPT(localStorage.getItem('wapp_' + key + '_follPT') || getDefaultFollPT());
-    setMsgFollowES(localStorage.getItem('wapp_' + key + '_follES') || getDefaultFollES());
+    const p = projetoAtivo; // snapshot do projeto para evitar closure stale
+    setEmpresas([]);         // limpar dados anteriores imediatamente
+    setHistorico([]);
+    fetchEmpresas(p);
+    fetchHistorico(p);
+    setObjetivo(p.meta_objetivo || 3000);
+    localStorage.setItem('projetoAtivoId', p.id);
+    // Textos WhatsApp: guardados por projeto, ou gerar defaults dinâmicos
+    const key = p.id;
+    setMsgPropostaPT(localStorage.getItem('wapp_' + key + '_propPT') || getDefaultPropPT(p));
+    setMsgPropostaES(localStorage.getItem('wapp_' + key + '_propES') || getDefaultPropES(p));
+    setMsgFollowPT(localStorage.getItem('wapp_' + key + '_follPT') || getDefaultFollPT(p));
+    setMsgFollowES(localStorage.getItem('wapp_' + key + '_follES') || getDefaultFollES(p));
   }, [projetoAtivo?.id]);
 
   async function fetchProjetos() {
@@ -129,12 +146,16 @@ export default function App() {
     const projetoSalvo = data?.[0];
     showMessage('✅ Projeto guardado!', 'success');
     setShowProjetoModal(false);
-    await fetchProjetos();
-    if (projetoSalvo) {
-      if (!editandoProjeto) setProjetoAtivo(projetoSalvo);
-      else if (projetoAtivo?.id === editandoProjeto.id) setProjetoAtivo(projetoSalvo);
-    }
     setEditandoProjeto(null);
+    // Definir o projeto ativo ANTES de fetchProjetos para evitar race condition
+    if (projetoSalvo) {
+      if (!editandoProjeto) {
+        setProjetoAtivo(projetoSalvo);
+      } else if (projetoAtivo?.id === editandoProjeto.id) {
+        setProjetoAtivo(projetoSalvo);
+      }
+    }
+    await fetchProjetos(); // atualizar lista de projetos depois
   }
 
   async function eliminarProjeto(proj) {
@@ -161,12 +182,13 @@ export default function App() {
     setShowProjetoModal(true);
   }
 
-  async function handleMetaChange(val) {
+  function handleMetaChange(val) {
     const num = Number(val) || 0;
     setObjetivo(num);
+    // Guardar no Supabase de forma não bloqueante (fire-and-forget com tratamento de erro)
     if (projetoAtivo) {
-      const { error } = await supabase.from('projetos').update({ meta_objetivo: num }).eq('id', projetoAtivo.id);
-      if (error) showMessage('❌ Erro ao guardar meta: ' + error.message, 'error');
+      supabase.from('projetos').update({ meta_objetivo: num }).eq('id', projetoAtivo.id)
+        .then(({ error }) => { if (error) showMessage('❌ Erro ao guardar meta: ' + error.message, 'error'); });
     }
   }
 
@@ -237,7 +259,8 @@ export default function App() {
     e.preventDefault();
     if (!empresaEmEdicao.nome) return showMessage('O nome não pode estar vazio!', 'error');
     showMessage('A guardar alterações...', 'info');
-    const { id, created_at, ...dadosParaAtualizar } = empresaEmEdicao;
+    const { id, created_at, projeto_id, ...dadosParaAtualizar } = empresaEmEdicao;
+    // projeto_id não deve ser alterado ao editar — extraído mas não incluído
     dadosParaAtualizar.email = dadosParaAtualizar.email || null;
     dadosParaAtualizar.telefone = dadosParaAtualizar.telefone || null;
     dadosParaAtualizar.data_followup = dadosParaAtualizar.data_followup || null;
@@ -309,7 +332,11 @@ export default function App() {
     }
     setBFotos(prev => [...prev, ...novasUrls]);
     setUploadingFotos(false);
-    showMessage(`📸 ${novasUrls.length} foto(s) prontas!`, 'success');
+    if (novasUrls.length > 0) {
+      showMessage(`📸 ${novasUrls.length} foto(s) prontas!`, 'success');
+    } else {
+      showMessage('❌ Nenhuma foto foi carregada com sucesso.', 'error');
+    }
     e.target.value = '';
   }
 
@@ -502,23 +529,26 @@ export default function App() {
   else if (sortBy === 'nome') empresasFiltradas.sort((a, b) => a.nome.localeCompare(b.nome));
   else empresasFiltradas.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
-  // Sem projetos — mostrar ecrã de boas-vindas
-  if (!loading && projetos.length === 0) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', fontFamily: 'sans-serif', padding: '20px' }}>
-      <div style={{ background: 'white', borderRadius: '20px', padding: '50px 40px', maxWidth: '480px', width: '100%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.1)', borderTop: '6px solid #d4af37' }}>
-        <div style={{ fontSize: '56px', marginBottom: '16px' }}>🩰</div>
-        <h1 style={{ color: '#1a1a1a', fontSize: '24px', fontWeight: '900', margin: '0 0 10px 0' }}>FlashLi Patrocínios</h1>
-        <p style={{ color: '#64748b', marginBottom: '30px' }}>Ainda não tens nenhum projeto. Cria o primeiro para começar!</p>
-        <button onClick={abrirNovoProj} style={{ background: '#1a1a1a', color: '#d4af37', padding: '16px 32px', borderRadius: '12px', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>+ Criar Primeiro Projeto</button>
-      </div>
-    </div>
-  );
+  // Sem projetos: renderizar ecrã de boas-vindas (dentro do return para o modal funcionar)
+  const semProjetos = !loading && projetos.length === 0;
 
   if (loading) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>A carregar... ⏳</div>;
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '15px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
       
+      {/* ECRÃ DE BOAS-VINDAS (sem projetos) */}
+      {semProjetos && !showProjetoModal && (
+        <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'white', borderRadius: '20px', padding: '50px 40px', maxWidth: '480px', width: '100%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.1)', borderTop: '6px solid #d4af37' }}>
+            <div style={{ fontSize: '56px', marginBottom: '16px' }}>🩰</div>
+            <h1 style={{ color: '#1a1a1a', fontSize: '24px', fontWeight: '900', margin: '0 0 10px 0' }}>FlashLi Patrocínios</h1>
+            <p style={{ color: '#64748b', marginBottom: '30px' }}>Ainda não tens nenhum projeto. Cria o primeiro para começar!</p>
+            <button onClick={abrirNovoProj} style={{ background: '#1a1a1a', color: '#d4af37', padding: '16px 32px', borderRadius: '12px', border: 'none', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>+ Criar Primeiro Projeto</button>
+          </div>
+        </div>
+      )}
+
       <style dangerouslySetInnerHTML={{__html: `
         .responsive-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
         .desktop-table { display: none; }
@@ -619,7 +649,7 @@ export default function App() {
         </div>
       )}
 
-      {/* --- MODAL PROJETO --- */}
+      {/* --- MODAL PROJETO (sempre renderizado) --- */}
       {showProjetoModal && (
         <div className="modal-overlay no-print" onClick={() => setShowProjetoModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
@@ -733,6 +763,8 @@ export default function App() {
         </div>
       )}
 
+      {/* --- APP PRINCIPAL (só quando há projetos) --- */}
+      {!semProjetos && <>
       {/* --- CABEÇALHO --- */}
       <header className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px', background: 'white', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderTop: `6px solid ${PRIMARY_COLOR}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
@@ -747,7 +779,7 @@ export default function App() {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             {/* SELECTOR DE PROJETO */}
             {projetos.length > 1 && (
-              <select value={projetoAtivo?.id || ''} onChange={e => { const p = projetos.find(x => x.id === e.target.value); if (p) { setProjetoAtivo(p); setEmpresas([]); setHistorico([]); setLoading(true); } }}
+              <select value={projetoAtivo?.id || ''} onChange={e => { const p = projetos.find(x => x.id === e.target.value); if (p && p.id !== projetoAtivo?.id) { setProjetoAtivo(p); } }}
                 style={{ padding: '8px 12px', borderRadius: '8px', border: '2px solid #d4af37', background: 'white', fontWeight: 'bold', color: TEXT_PRIMARY, fontSize: '13px', cursor: 'pointer', maxWidth: '220px' }}>
                 {projetos.map(p => <option key={p.id} value={p.id}>{p.bandeira} {p.nome}</option>)}
               </select>
@@ -1496,6 +1528,7 @@ export default function App() {
         </div>
       )}
 
+      </>}
     </div>
   );
 }
