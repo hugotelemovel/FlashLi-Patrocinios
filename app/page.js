@@ -109,9 +109,10 @@ export default function App() {
 
   async function guardarProjeto(e) {
     e.preventDefault();
-    const dados = editandoProjeto ? { ...novoProj } : { ...novoProj };
-    if (!dados.nome || !dados.cidade || !dados.pais) return showMessage('Nome, cidade e país são obrigatórios.', 'error');
-    dados.nome = dados.nome || `${dados.evento} ${dados.ano} ${dados.cidade}`;
+    const dados = { ...novoProj };
+    if (!dados.nome?.trim()) return showMessage('O nome da competição é obrigatório.', 'error');
+    if (!dados.cidade?.trim()) return showMessage('A cidade é obrigatória.', 'error');
+    dados.nome = dados.nome.trim();
     showMessage('A guardar projeto...', 'info');
     let result;
     if (editandoProjeto) {
@@ -611,25 +612,105 @@ export default function App() {
               <button onClick={() => setShowProjetoModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
             </div>
             <form onSubmit={guardarProjeto}>
+              <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 16px 0' }}>
+                Cada projeto é uma competição independente. Podes ter vários ativos em paralelo — AllDance 2027, DWCup 2027, etc.
+              </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+
+                {/* NOME LIVRE — campo principal */}
                 <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                  <label>Nome do Projeto (automático se vazio)</label>
-                  <input type="text" placeholder="ex: DWCup 2027 Lisboa" value={novoProj.nome} onChange={e => setNovoProj({...novoProj, nome: e.target.value})} />
+                  <label>Nome da Competição *</label>
+                  <input type="text" required placeholder="ex: AllDance 2027 Lisboa, DWCup 2026 Dublin, IDO 2027 Madrid..."
+                    value={novoProj.nome}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setNovoProj({...novoProj, nome: v, evento: v.split(' ')[0] || novoProj.evento});
+                    }}
+                    style={{ fontSize: '15px', fontWeight: 'bold' }} />
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Escreve o nome completo como queres que apareça nos emails e relatórios.</div>
                 </div>
-                <div className="form-group"><label>Evento</label><input type="text" required value={novoProj.evento} onChange={e => setNovoProj({...novoProj, evento: e.target.value})} /></div>
-                <div className="form-group"><label>Ano</label><input type="number" required value={novoProj.ano} onChange={e => setNovoProj({...novoProj, ano: Number(e.target.value)})} /></div>
-                <div className="form-group"><label>Cidade</label><input type="text" required placeholder="ex: Lisboa" value={novoProj.cidade} onChange={e => setNovoProj({...novoProj, cidade: e.target.value})} /></div>
-                <div className="form-group"><label>País</label><input type="text" required placeholder="ex: Portugal" value={novoProj.pais} onChange={e => setNovoProj({...novoProj, pais: e.target.value})} /></div>
-                <div className="form-group"><label>Bandeira (emoji)</label><input type="text" value={novoProj.bandeira} onChange={e => setNovoProj({...novoProj, bandeira: e.target.value})} style={{ fontSize: '24px' }} /></div>
-                <div className="form-group"><label>Meta (€)</label><input type="number" value={novoProj.meta_objetivo} onChange={e => setNovoProj({...novoProj, meta_objetivo: Number(e.target.value)})} /></div>
-                <div className="form-group" style={{ gridColumn: 'span 2' }}><label>Atletas (separadas por vírgula)</label><input type="text" placeholder="Matilde Mota, Ana Silva" value={novoProj.atletas} onChange={e => setNovoProj({...novoProj, atletas: e.target.value})} /></div>
-                <div className="form-group"><label>Escola</label><input type="text" value={novoProj.escola} onChange={e => setNovoProj({...novoProj, escola: e.target.value})} /></div>
-                <div className="form-group"><label>Gestor (nome)</label><input type="text" value={novoProj.gestor} onChange={e => setNovoProj({...novoProj, gestor: e.target.value})} /></div>
-                <div className="form-group" style={{ gridColumn: 'span 2' }}><label>URL do Dossier (PDF)</label><input type="text" placeholder="https://..." value={novoProj.dossier_url} onChange={e => setNovoProj({...novoProj, dossier_url: e.target.value})} /></div>
+
+                {/* ANO */}
+                <div className="form-group">
+                  <label>Ano *</label>
+                  <input type="number" required value={novoProj.ano}
+                    onChange={e => setNovoProj({...novoProj, ano: Number(e.target.value)})} />
+                </div>
+
+                {/* META */}
+                <div className="form-group">
+                  <label>Meta de Angariação (€) *</label>
+                  <input type="number" required value={novoProj.meta_objetivo}
+                    onChange={e => setNovoProj({...novoProj, meta_objetivo: Number(e.target.value)})} />
+                </div>
+
+                {/* CIDADE + PAIS + BANDEIRA */}
+                <div className="form-group">
+                  <label>Cidade do Evento *</label>
+                  <input type="text" required placeholder="ex: Lisboa"
+                    value={novoProj.cidade}
+                    onChange={e => setNovoProj({...novoProj, cidade: e.target.value})} />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label>País</label>
+                    <input type="text" placeholder="ex: Portugal"
+                      value={novoProj.pais}
+                      onChange={e => setNovoProj({...novoProj, pais: e.target.value})} />
+                  </div>
+                  <div style={{ width: '70px' }}>
+                    <label>Bandeira</label>
+                    <input type="text" value={novoProj.bandeira}
+                      onChange={e => setNovoProj({...novoProj, bandeira: e.target.value})}
+                      style={{ fontSize: '22px', textAlign: 'center', padding: '8px 4px' }} />
+                  </div>
+                </div>
+
+                {/* ATLETAS */}
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>Atletas (separadas por vírgula)</label>
+                  <input type="text" placeholder="ex: Matilde Mota, Ana Silva"
+                    value={novoProj.atletas}
+                    onChange={e => setNovoProj({...novoProj, atletas: e.target.value})} />
+                </div>
+
+                {/* DOSSIER */}
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>Link do Dossier PDF (opcional)</label>
+                  <input type="text" placeholder="https://... (deixa em branco para usar o dossier atual)"
+                    value={novoProj.dossier_url}
+                    onChange={e => setNovoProj({...novoProj, dossier_url: e.target.value})} />
+                </div>
+
               </div>
+
+              {/* AVANÇADO: escola/gestor colapsáveis */}
+              <details style={{ marginTop: '10px' }}>
+                <summary style={{ cursor: 'pointer', fontSize: '12px', color: '#64748b', fontWeight: 'bold', userSelect: 'none' }}>⚙️ Configurações avançadas (escola, gestor, whatsapp)</summary>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px', padding: '12px', background: '#f8fafc', borderRadius: '8px' }}>
+                  <div className="form-group"><label>Escola</label><input type="text" value={novoProj.escola} onChange={e => setNovoProj({...novoProj, escola: e.target.value})} /></div>
+                  <div className="form-group"><label>Gestor (assina emails)</label><input type="text" value={novoProj.gestor} onChange={e => setNovoProj({...novoProj, gestor: e.target.value})} /></div>
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}><label>WhatsApp do Gestor</label><input type="text" value={novoProj.gestor_whatsapp} onChange={e => setNovoProj({...novoProj, gestor_whatsapp: e.target.value})} /></div>
+                </div>
+              </details>
+
+              {/* AÇÕES: eliminar projeto (só ao editar) */}
+              {editandoProjeto && (
+                <div style={{ marginTop: '16px', padding: '12px', background: '#fff1f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                  <div style={{ fontSize: '12px', color: '#991b1b', marginBottom: '8px', fontWeight: 'bold' }}>⚠️ Zona de Perigo</div>
+                  <button type="button" onClick={() => { setShowProjetoModal(false); eliminarProjeto(editandoProjeto); }}
+                    style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                    🗑️ Eliminar este projeto e todos os seus dados
+                  </button>
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                <button type="button" onClick={() => setShowProjetoModal(false)} className="btn-hover" style={{ flex: 1, padding: '12px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
-                <button type="submit" className="btn-hover" style={{ flex: 2, padding: '12px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>💾 Guardar Projeto</button>
+                <button type="button" onClick={() => setShowProjetoModal(false)} className="btn-hover"
+                  style={{ flex: 1, padding: '12px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+                <button type="submit" className="btn-hover"
+                  style={{ flex: 2, padding: '12px', background: TEXT_PRIMARY, color: PRIMARY_COLOR, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>💾 Guardar</button>
               </div>
             </form>
           </div>
@@ -649,10 +730,17 @@ export default function App() {
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             {/* SELECTOR DE PROJETO */}
-            <select value={projetoAtivo?.id || ''} onChange={e => { const p = projetos.find(x => x.id === e.target.value); if (p) { setProjetoAtivo(p); setEmpresas([]); setHistorico([]); } }}
-              style={{ padding: '8px 12px', borderRadius: '8px', border: '2px solid #d4af37', background: 'white', fontWeight: 'bold', color: TEXT_PRIMARY, fontSize: '13px', cursor: 'pointer' }}>
-              {projetos.map(p => <option key={p.id} value={p.id}>{p.bandeira} {p.nome}</option>)}
-            </select>
+            {projetos.length > 1 && (
+              <select value={projetoAtivo?.id || ''} onChange={e => { const p = projetos.find(x => x.id === e.target.value); if (p) { setProjetoAtivo(p); setEmpresas([]); setHistorico([]); setLoading(true); } }}
+                style={{ padding: '8px 12px', borderRadius: '8px', border: '2px solid #d4af37', background: 'white', fontWeight: 'bold', color: TEXT_PRIMARY, fontSize: '13px', cursor: 'pointer', maxWidth: '220px' }}>
+                {projetos.map(p => <option key={p.id} value={p.id}>{p.bandeira} {p.nome}</option>)}
+              </select>
+            )}
+            {projetos.length === 1 && (
+              <span style={{ padding: '8px 12px', borderRadius: '8px', border: '2px solid #d4af37', background: '#fffbeb', fontWeight: 'bold', color: TEXT_PRIMARY, fontSize: '13px' }}>
+                {projetoAtivo?.bandeira} {projetoAtivo?.nome}
+              </span>
+            )}
             <button onClick={abrirNovoProj} className="btn-hover" title="Novo Projeto" style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#166534', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>+ Projeto</button>
             {projetoAtivo && <button onClick={() => abrirEditarProj(projetoAtivo)} className="btn-hover" title="Editar Projeto Atual" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', color: '#475569', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}><Settings size={16}/></button>}
             <button onClick={() => setShowSettings(true)} className="btn-hover" style={{ background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', color: '#475569' }} title="Textos WhatsApp"><MessageCircle size={16}/></button>
