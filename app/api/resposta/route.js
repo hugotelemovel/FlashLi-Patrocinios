@@ -27,16 +27,12 @@ export async function GET(request) {
 
   const { status, emoji, titulo, msg } = mapa[resp];
 
-  // Atualizar Supabase
-  const { data: empresa, error: dbError } = await supabase
-    .from('patrocinadores')
-    .update({ status })
-    .eq('id', id)
-    .select('nome, email')
-    .single();
+  // Atualizar Supabase (função segura: só altera o estado desta empresa)
+  const { data: linhas, error: dbError } = await supabase.rpc('registar_resposta', { p_id: id, p_status: status });
+  const empresa = Array.isArray(linhas) ? linhas[0] : null;
 
   // Se id não existe na BD, empresa será null — resposta visual continua mas sem notificação
-  if (dbError && !empresa) {
+  if (dbError || !empresa) {
     console.warn('Empresa não encontrada para id:', id, dbError?.message);
   }
 
@@ -50,15 +46,7 @@ export async function GET(request) {
         greetingTimeout: 10000,
         socketTimeout: 20000,
       });
-      // Ir buscar url_base do projeto para o link do CRM
-      let crmUrl = 'https://flash-li-patrocinios.vercel.app';
-      try {
-        const { data: pat } = await supabase.from('patrocinadores').select('projeto_id').eq('id', id).single();
-        if (pat?.projeto_id) {
-          const { data: proj } = await supabase.from('projetos').select('url_base, nome').eq('id', pat.projeto_id).single();
-          if (proj?.url_base) crmUrl = proj.url_base;
-        }
-      } catch (_) {}
+      const crmUrl = empresa.url_base || 'https://flash-li-patrocinios.vercel.app';
 
       await transporter.sendMail({
         from: `"Flash Li CRM" <${process.env.EMAIL_USER}>`,
@@ -67,7 +55,7 @@ export async function GET(request) {
         html: `
           <div style="font-family:Arial,sans-serif;padding:20px;max-width:500px;">
             <h2 style="color:#1a1a1a;">Nova resposta no CRM</h2>
-            <p><strong>Empresa:</strong> ${empresa.nome}</p>
+            <p><strong>Empresa:</strong> ${String(empresa.nome).replace(/</g,'&lt;')}</p>
             <p><strong>Resposta:</strong> ${emoji} ${status}</p>
             <p><strong>Email:</strong> ${empresa.email || '-'}</p>
             <p style="margin-top:20px;"><a href="${crmUrl}" style="background:#1a1a1a;color:#d4af37;padding:10px 20px;text-decoration:none;border-radius:8px;font-weight:bold;">Ver no CRM</a></p>

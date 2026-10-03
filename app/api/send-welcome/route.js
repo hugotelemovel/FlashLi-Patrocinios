@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { exigirAdmin } from '../../../lib/auth-server';
 
 function esc(str) {
   return String(str || '')
@@ -10,6 +11,8 @@ function esc(str) {
 }
 
 export async function POST(request) {
+  const auth = await exigirAdmin(request);
+  if (auth.erro) return auth.erro;
   const payload = await request.json();
   const empresa = payload;
   const proj = payload.projeto || {};

@@ -130,3 +130,8 @@ ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS followup_enviado_em timestam
 ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS nif text;
 ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS morada text;
 ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS email_recibo text;
+
+-- 9. SEGURANÇA (out/2026): login obrigatório + RLS
+-- Ver migrações no Supabase: auth_admins_e_funcoes_publicas, rls_so_admins.
+-- Tabela admins (quem pode usar o CRM), função is_admin(), registar_resposta() (botões do email, sem login),
+-- ping() (keepalive) e políticas RLS "só admins" em projetos, patrocinadores, historico_novidades e storage 'fotos'.

@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { exigirAdmin } from '../../../lib/auth-server';
 import { DOSSIERS, gerarDossierPDF, nomeFicheiroDossier } from '../../../lib/dossier';
 
 export const runtime = 'nodejs';
@@ -13,6 +14,8 @@ function esc(str) {
 }
 
 export async function POST(request) {
+  const auth = await exigirAdmin(request);
+  if (auth.erro) return auth.erro;
   const payload = await request.json();
   const empresa = payload;
   const proj = payload.projeto || {};

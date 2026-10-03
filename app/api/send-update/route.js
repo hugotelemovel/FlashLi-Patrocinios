@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { exigirAdmin } from '../../../lib/auth-server';
 
 // Escape HTML para evitar XSS nos emails
 function esc(str) {
@@ -19,6 +20,8 @@ function safeUrl(url) {
 }
 
 export async function POST(request) {
+  const auth = await exigirAdmin(request);
+  if (auth.erro) return auth.erro;
   const {
     assunto, mensagem,
     fotoUrl, fotosExtras = [],

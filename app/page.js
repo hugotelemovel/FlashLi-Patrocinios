@@ -2,9 +2,40 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { BarChart3, Users, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, Phone, Globe, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle, X, Crown, PenTool, Printer, LayoutGrid, SortDesc } from 'lucide-react';
-import { Settings, FileText, Repeat } from 'lucide-react';
+import { Settings, FileText, Repeat, LogOut, KeyRound } from 'lucide-react';
 
 export default function App() {
+  // === LOGIN ===
+  const [sessao, setSessao] = useState(undefined); // undefined = a verificar, null = sem sessão
+  const [loginEmail, setLoginEmail] = useState('hugotelemovel@icloud.com');
+  const [loginPass, setLoginPass] = useState('');
+  const [loginErro, setLoginErro] = useState('');
+  const [aEntrar, setAEntrar] = useState(false);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSessao(data.session || null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSessao(s || null));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+  async function entrar(e) {
+    e.preventDefault(); setAEntrar(true); setLoginErro('');
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail.trim(), password: loginPass });
+    if (error) setLoginErro(error.message === 'Invalid login credentials' ? 'Email ou password errados.' : error.message);
+    setAEntrar(false);
+  }
+  async function sair() { await supabase.auth.signOut(); setProjetos([]); setEmpresas([]); setProjetoAtivo(null); }
+  async function mudarPassword() {
+    const nova = window.prompt('Nova password (mínimo 8 caracteres):');
+    if (!nova) return;
+    if (nova.length < 8) return showMessage('A password tem de ter pelo menos 8 caracteres.', 'error');
+    const { error } = await supabase.auth.updateUser({ password: nova });
+    if (error) showMessage('❌ ' + error.message, 'error'); else showMessage('✅ Password alterada!', 'success');
+  }
+  // fetch para as rotas de envio, com o token da sessão
+  async function apiPost(url, corpo) {
+    const { data } = await supabase.auth.getSession();
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session?.access_token || ''}` }, body: JSON.stringify(corpo) });
+  }
+
   // === ESTADOS BASE ===
   const [empresas, setEmpresas] = useState([]);
   const [historico, setHistorico] = useState([]); 
@@ -101,9 +132,9 @@ export default function App() {
 
   // Carregar projetos ao iniciar
   useEffect(() => {
-    fetchProjetos();
+    if (sessao) fetchProjetos();
     // textos WhatsApp carregados ao mudar projeto (ver useEffect de projetoAtivo)
-  }, []);
+  }, [sessao?.user?.id]);
 
   // Quando projeto muda, carregar dados e atualizar textos
   useEffect(() => {
@@ -300,7 +331,7 @@ export default function App() {
     const ehFollow = tipo === 'followup';
     showMessage(`A enviar ${ehFollow ? 'follow-up' : 'proposta'} por email para ${empresa.nome}...`, 'info', 0);
     try {
-      const res = await fetch('/api/send-proposal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, tipo, projeto: dadosProjetoEmail() }) });
+      const res = await apiPost('/api/send-proposal', { ...empresa, tipo, projeto: dadosProjetoEmail() });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
         const agora = new Date().toISOString();
@@ -321,7 +352,7 @@ export default function App() {
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A pedir dados e logo a ${empresa.nome}...`, 'info');
     try {
-      const res = await fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: dadosProjetoEmail() }) });
+      const res = await apiPost('/api/send-welcome', { ...empresa, projeto: dadosProjetoEmail() });
       const json = await res.json().catch(() => ({}));
       if (res.ok) showMessage(`✅ Pedido enviado com sucesso!`, 'success');
       else showMessage(`❌ Falha no envio: ${json.error || res.statusText}`, 'error');
@@ -474,11 +505,7 @@ export default function App() {
     const primeiraFoto = fotosUrls[0] || bFoto || '';
 
     try {
-      const res = await fetch('/api/send-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assunto: bAssunto, mensagem: bMensagem, fotoUrl: primeiraFoto, fotosExtras: fotosUrls.slice(1), videos: bVideos, linksRS: bLinksRS, empresas: alvosComEmail, tipoCampanha: bTipoCampanha, totalAngariado: angariado, metaObjetivo: objetivo, totalParceiros: totalAceites, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, pais: projetoAtivo?.pais, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, atletas: projetoAtivo?.atletas, url_base: projetoAtivo?.url_base, nome: projetoAtivo?.nome } })
-      });
+      const res = await apiPost('/api/send-update', { assunto: bAssunto, mensagem: bMensagem, fotoUrl: primeiraFoto, fotosExtras: fotosUrls.slice(1), videos: bVideos, linksRS: bLinksRS, empresas: alvosComEmail, tipoCampanha: bTipoCampanha, totalAngariado: angariado, metaObjetivo: objetivo, totalParceiros: totalAceites, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, pais: projetoAtivo?.pais, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, atletas: projetoAtivo?.atletas, url_base: projetoAtivo?.url_base, nome: projetoAtivo?.nome } });
 
       const json = await res.json();
 
@@ -569,6 +596,22 @@ export default function App() {
   // Sem projetos: renderizar ecrã de boas-vindas (dentro do return para o modal funcionar)
   const semProjetos = !loading && projetos.length === 0;
 
+  if (sessao === undefined) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>A carregar... ⏳</div>;
+  if (!sessao) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
+      <form onSubmit={entrar} style={{ background: 'white', borderRadius: '16px', padding: '32px 26px', width: '100%', maxWidth: '380px', boxShadow: '0 8px 32px rgba(0,0,0,0.1)', borderTop: '6px solid #d4af37' }}>
+        <div style={{ fontSize: '40px', textAlign: 'center' }}>🩰</div>
+        <h1 style={{ fontSize: '19px', textAlign: 'center', margin: '8px 0 4px', color: '#1a1a1a' }}>Flash Li · Patrocínios</h1>
+        <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', margin: '0 0 22px' }}>Acesso reservado</p>
+        <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>Email</label>
+        <input type="email" autoComplete="username" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required style={{ width: '100%', boxSizing: 'border-box', padding: '12px', margin: '6px 0 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '16px' }} />
+        <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>Password</label>
+        <input type="password" autoComplete="current-password" value={loginPass} onChange={e => setLoginPass(e.target.value)} required autoFocus style={{ width: '100%', boxSizing: 'border-box', padding: '12px', margin: '6px 0 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '16px' }} />
+        {loginErro && <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px', borderRadius: '8px', fontSize: '13px', marginBottom: '12px' }}>{loginErro}</div>}
+        <button type="submit" disabled={aEntrar} style={{ width: '100%', padding: '13px', background: '#1a1a1a', color: '#d4af37', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}>{aEntrar ? 'A entrar…' : 'Entrar'}</button>
+      </form>
+    </div>
+  );
   if (loading) return <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>A carregar... ⏳</div>;
 
   return (
@@ -851,6 +894,8 @@ export default function App() {
             <button onClick={abrirNovoProj} className="btn-hover" title="Novo Projeto" style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#166534', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>+ Projeto</button>
             {projetoAtivo && <button onClick={() => abrirEditarProj(projetoAtivo)} className="btn-hover" title="Editar Projeto Atual" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', color: '#475569', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}><Settings size={16}/></button>}
             <button onClick={() => setShowSettings(true)} className="btn-hover" style={{ background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', color: '#475569' }} title="Textos WhatsApp"><MessageCircle size={16}/></button>
+            <button onClick={mudarPassword} className="btn-hover" style={{ background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', color: '#475569' }} title="Mudar password"><KeyRound size={16}/></button>
+            <button onClick={sair} className="btn-hover" style={{ background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', color: '#475569' }} title="Sair"><LogOut size={16}/></button>
           </div>
         </div>
         
