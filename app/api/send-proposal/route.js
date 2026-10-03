@@ -1,4 +1,7 @@
 import nodemailer from 'nodemailer';
+import { DOSSIERS, gerarDossierPDF, nomeFicheiroDossier } from '../../../lib/dossier';
+
+export const runtime = 'nodejs';
 
 function esc(str) {
   return String(str || '')
@@ -23,6 +26,11 @@ export async function POST(request) {
   const gestor = proj.gestor || "Hugo";
   const atletas = proj.atletas || "";
   const nomeProjeto = proj.nome || `${evento} ${ano}`;
+  const whatsapp = proj.gestor_whatsapp || "+351 924 368 517";
+  const tipo = payload.tipo === 'followup' ? 'followup' : 'proposta';
+  const dossierChave = DOSSIERS[proj.dossier_template] ? proj.dossier_template : null;
+  // Destaques: um por linha (configurável no projeto). Sem destaques → bloco omitido.
+  const destaques = String(proj.destaques || '').split('\n').map(s => s.trim()).filter(Boolean);
   // Texto sobre atletas: "da atleta X" ou "das atletas X, Y" ou genérico
   const numAtletas = atletas ? atletas.split(',').map(s => s.trim()).filter(Boolean).length : 0;
   const atletasTxtPT = numAtletas === 0 ? "das nossas atletas"
@@ -42,9 +50,19 @@ export async function POST(request) {
 
   const isES = empresa.idioma === 'ES';
 
-  const assunto = isES
-    ? `Propuesta de Patrocinio — ${evento} ${ano} ${cidade} ${bandeira} (${esc(empresa.nome)})`
-    : `Proposta de Patrocínio — ${evento} ${ano} ${cidade} ${bandeira} (${esc(empresa.nome)})`;
+  const baseAssunto = isES
+    ? `Propuesta de Patrocinio — ${evento} ${ano} ${cidade} ${bandeira} (${empresa.nome})`
+    : `Proposta de Patrocínio — ${evento} ${ano} ${cidade} ${bandeira} (${empresa.nome})`;
+  const assunto = tipo === 'followup' ? `Re: ${baseAssunto}` : baseAssunto;
+
+  // Link do dossier: personalizado (com o nome da empresa) quando o projeto tem template
+  const linkDossierFinal = dossierChave
+    ? `${baseUrl}/api/dossier?t=${dossierChave}&empresa=${encodeURIComponent(empresa.nome || '')}`
+    : linkDossier;
+
+  const introFollowup = isES
+    ? `Me permito retomar el contacto sobre la propuesta de patrocinio que les envié hace unos días. Cualquier contribución, sea cual sea el importe, marca la diferencia.`
+    : `Permita-me retomar o contacto sobre a proposta de patrocínio que vos enviei há alguns dias. Qualquer contributo, independentemente do valor, faz a diferença.`;
 
   const corpoHTML = `
 <!DOCTYPE html>
@@ -63,19 +81,20 @@ export async function POST(request) {
       ${isES ? `Estimado(a) Director(a) de <strong>${esc(empresa.nome)}</strong>,` : `Exmo(a). Sr(a). Diretor(a) da <strong>${esc(empresa.nome)}</strong>,`}
     </p>
 
+    ${tipo === 'followup' ? `<p style="font-size:14px;line-height:1.7;color:#475569;margin:0 0 14px 0;">${introFollowup}</p>` : ''}
+
     <p style="font-size:14px;line-height:1.7;color:#475569;margin:0 0 14px 0;">
       ${isES
         ? `Mi nombre es <strong>${esc(gestor)}</strong> y les contacto como responsable ${atletasTxtES}, de la ${esc(escola)}.`
         : `O meu nome é <strong>${esc(gestor)}</strong> e contacto-vos na qualidade de responsável ${atletasTxtPT}, da ${esc(escola)}.`}
     </p>
 
-    <div style="background:#f0fdf4;border-left:4px solid #10b981;padding:16px 20px;border-radius:0 10px 10px 0;margin:20px 0;">
+    ${destaques.length ? `<div style="background:#f0fdf4;border-left:4px solid #10b981;padding:16px 20px;border-radius:0 10px 10px 0;margin:20px 0;">
       <div style="font-size:13px;font-weight:bold;color:#166534;margin-bottom:8px;">🏆 ${isES ? 'Nuestros resultados más recientes' : 'Os nossos resultados mais recentes'}</div>
       <ul style="margin:0;padding-left:18px;color:#15803d;font-size:14px;line-height:1.8;">
-        <li>${isES ? '24 podios y <strong>15 Medallas de Oro</strong> en la final nacional' : '24 pódios e <strong>15 Medalhas de Ouro</strong> na final nacional'}</li>
-        <li>${isES ? 'Clasificados para representar a Portugal en Dublín 2026' : 'Apurados para representar Portugal em ${cidade} ${ano}'}</li>
+        ${destaques.map(d => `<li>${esc(d)}</li>`).join('')}
       </ul>
-    </div>
+    </div>` : ''}
 
     <p style="font-size:14px;line-height:1.7;color:#475569;margin:0 0 14px 0;">
       ${isES
@@ -84,9 +103,10 @@ export async function POST(request) {
     </p>
 
     <div style="text-align:center;margin:28px 0;">
-      <a href="${linkDossier}" style="background:#1a1a1a;color:#d4af37;padding:16px 28px;text-decoration:none;border-radius:10px;font-weight:bold;font-size:15px;display:inline-block;letter-spacing:0.3px;">
-        📥 ${isES ? 'Descargar Dossier Completo (PDF)' : 'Descarregar Dossier Completo (PDF)'}
+      <a href="${linkDossierFinal}" style="background:#1a1a1a;color:#d4af37;padding:16px 28px;text-decoration:none;border-radius:10px;font-weight:bold;font-size:15px;display:inline-block;letter-spacing:0.3px;">
+        📥 ${isES ? 'Ver Dossier Completo (PDF)' : 'Ver Dossier Completo (PDF)'}
       </a>
+      ${dossierChave ? `<div style="font-size:12px;color:#94a3b8;margin-top:8px;">${isES ? 'El dossier también va adjunto a este email.' : 'O dossier segue também em anexo neste email.'}</div>` : ''}
     </div>
 
     <div style="background:#f8fafc;padding:24px;border-radius:12px;border:1px solid #e2e8f0;text-align:center;margin-top:30px;">
@@ -109,8 +129,8 @@ export async function POST(request) {
     <div style="border-top:1px solid #e2e8f0;padding-top:20px;margin-top:28px;">
       <p style="color:#64748b;font-size:13px;margin:0 0 4px 0;">${isES ? 'Quedo a su disposición. ¡Muchas gracias!' : 'Fico ao vosso dispor. Muito obrigado!'}</p>
       <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:6px 0 2px 0;">${esc(gestor)}</p>
-      <p style="color:#94a3b8;font-size:12px;margin:0;">${isES ? '${gestor} — ${escola}' : '${gestor} — ${escola}'}<br/>
-      📱 WhatsApp: +351 924 368 517</p>
+      <p style="color:#94a3b8;font-size:12px;margin:0;">${esc(escola)}<br/>
+      📱 WhatsApp: ${esc(whatsapp)}</p>
     </div>
   </div>
 
@@ -135,14 +155,24 @@ export async function POST(request) {
     return new Response(JSON.stringify({ error: `Falha SMTP: ${smtpErr.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
+  let attachments = [];
+  if (dossierChave) {
+    try {
+      attachments = [{ filename: nomeFicheiroDossier(dossierChave, empresa.nome), content: await gerarDossierPDF(dossierChave, empresa.nome), contentType: 'application/pdf' }];
+    } catch (err) {
+      return new Response(JSON.stringify({ error: `Falha a gerar o dossier: ${err.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    }
+  }
+
   try {
     await transporter.sendMail({
       from: `"${gestor} - ${escola}" <${process.env.EMAIL_USER}>`,
       to: empresa.email,
       subject: assunto,
       html: corpoHTML,
+      attachments,
     });
-    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ success: true, anexo: !!dossierChave }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }

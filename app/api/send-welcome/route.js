@@ -19,6 +19,7 @@ export async function POST(request) {
   const bandeira = proj.bandeira || "🇮🇪";
   const escola = proj.escola || "Flash Li Dance School";
   const gestor = proj.gestor || "Hugo";
+  const whatsapp = proj.gestor_whatsapp || "+351 924 368 517";
   const baseUrl = proj.url_base || "https://flash-li-patrocinios.vercel.app";
 
   if (!empresa.email) {
@@ -93,8 +94,8 @@ export async function POST(request) {
     <div style="border-top:1px solid #e2e8f0;padding-top:20px;margin-top:28px;">
       <p style="color:#64748b;font-size:13px;margin:0 0 4px 0;">Com os melhores cumprimentos e um enorme obrigado,</p>
       <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:6px 0 2px 0;">${esc(gestor)}</p>
-      <p style="color:#94a3b8;font-size:12px;margin:0;">${gestor} — ${escola}<br/>
-      📱 WhatsApp: +351 924 368 517</p>
+      <p style="color:#94a3b8;font-size:12px;margin:0;">${esc(gestor)} — ${esc(escola)}<br/>
+      📱 WhatsApp: ${esc(whatsapp)}</p>
     </div>
   </div>
 

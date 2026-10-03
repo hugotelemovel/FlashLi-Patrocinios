@@ -122,3 +122,11 @@ BEGIN
     UPDATE historico_novidades SET projeto_id = v_id WHERE projeto_id IS NULL;
   END IF;
 END $$;
+
+-- 8. DOSSIER PERSONALIZADO, FOLLOW-UP POR EMAIL E DADOS DE FATURAÇÃO (out/2026)
+ALTER TABLE projetos ADD COLUMN IF NOT EXISTS dossier_template text;   -- ex: 'matilde-dwc2026' (ver lib/dossier.js)
+ALTER TABLE projetos ADD COLUMN IF NOT EXISTS destaques text;          -- resultados em destaque no email, um por linha
+ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS followup_enviado_em timestamptz;
+ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS nif text;
+ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS morada text;
+ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS email_recibo text;

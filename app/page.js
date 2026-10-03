@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { BarChart3, Users, Send, Trash2, Search, Download, AlertTriangle, CheckCircle, UploadCloud, Calendar, Award, Phone, Globe, MessageCircle, Mail, Edit, TrendingUp, Target, Filter, AlertCircle, X, Crown, PenTool, Printer, LayoutGrid, SortDesc } from 'lucide-react';
-import { Settings } from 'lucide-react';
+import { Settings, FileText, Repeat } from 'lucide-react';
 
 export default function App() {
   // === ESTADOS BASE ===
@@ -21,7 +21,7 @@ export default function App() {
   const [projetoAtivo, setProjetoAtivo] = useState(null); // objeto projeto completo
   const [showProjetoModal, setShowProjetoModal] = useState(false);
   const [editandoProjeto, setEditandoProjeto] = useState(null); // null = novo, objeto = editar
-  const [novoProj, setNovoProj] = useState({ nome:'', evento:'', ano: new Date().getFullYear()+1, cidade:'', pais:'', bandeira:'🏳️', meta_objetivo:3000, atletas:'', escola:'Flash Li Dance School', gestor:'Hugo', gestor_whatsapp:'+351 924 368 517', dossier_url:'', url_base:'https://flash-li-patrocinios.vercel.app' });
+  const [novoProj, setNovoProj] = useState({ nome:'', evento:'', ano: new Date().getFullYear()+1, cidade:'', pais:'', bandeira:'🏳️', meta_objetivo:3000, atletas:'', escola:'Flash Li Dance School', gestor:'Hugo', gestor_whatsapp:'+351 924 368 517', dossier_url:'', dossier_template:'', destaques:'', url_base:'https://flash-li-patrocinios.vercel.app' });
 
   const [objetivo, setObjetivo] = useState(3000);
 
@@ -61,11 +61,11 @@ export default function App() {
   // (definidas como funções normais, não arrow, para poderem usar projetoAtivo do closure)
   function getDefaultPropPT(p) {
     const proj = p || projetoAtivo || {};
-    return `Olá! Sou o ${proj.gestor || 'Hugo'}, da ${proj.escola || 'Flash Li Dance School'}.\n\nEstamos à procura de parceiros para apoiar a nossa equipa rumo ao ${proj.nome || 'campeonato'} em ${proj.cidade || 'destino'}. ${proj.bandeira || '🩰'}\n\nDeixo aqui o nosso dossier com mais detalhes e as propostas de visibilidade para a *{nome}*:\n📄 ${proj.dossier_url || (proj.url_base || 'https://flash-li-patrocinios.vercel.app')}\n\nGostaria muito de saber a vossa opinião! Muito obrigado.`;
+    return `Olá! Sou o ${proj.gestor || 'Hugo'}, da ${proj.escola || 'Flash Li Dance School'}.\n\nEstamos à procura de parceiros para apoiar a nossa equipa rumo ao ${proj.nome || 'campeonato'} em ${proj.cidade || 'destino'}. ${proj.bandeira || '🩰'}\n\nDeixo aqui o nosso dossier com mais detalhes e as propostas de visibilidade para a *{nome}*:\n📄 {dossier}\n\nGostaria muito de saber a vossa opinião! Muito obrigado.`;
   }
   function getDefaultPropES(p) {
     const proj = p || projetoAtivo || {};
-    return `¡Hola! Soy ${proj.gestor || 'Hugo'}, de ${proj.escola || 'Flash Li Dance School'}.\n\nEstamos buscando socios para apoyar a nuestro equipo de cara a ${proj.nome || 'la competición'} en ${proj.cidade || 'destino'}. ${proj.bandeira || '🩰'}\n\nLe dejo aquí nuestro dossier con más detalles y las propuestas de visibilidad para *{nome}*:\n📄 ${proj.dossier_url || (proj.url_base || 'https://flash-li-patrocinios.vercel.app')}\n\n¡Me gustaría mucho saber su opinión! Muchas gracias.`;
+    return `¡Hola! Soy ${proj.gestor || 'Hugo'}, de ${proj.escola || 'Flash Li Dance School'}.\n\nEstamos buscando socios para apoyar a nuestro equipo de cara a ${proj.nome || 'la competición'} en ${proj.cidade || 'destino'}. ${proj.bandeira || '🩰'}\n\nLe dejo aquí nuestro dossier con más detalles y las propuestas de visibilidad para *{nome}*:\n📄 {dossier}\n\n¡Me gustaría mucho saber su opinión! Muchas gracias.`;
   }
   function getDefaultFollPT(p) {
     const proj = p || projetoAtivo || {};
@@ -74,6 +74,21 @@ export default function App() {
   function getDefaultFollES(p) {
     const proj = p || projetoAtivo || {};
     return `¡Hola! Soy ${proj.gestor || 'Hugo'}, de ${proj.escola || 'Flash Li Dance School'}.\n\nRecientemente contactamos con *{nome}* para una colaboración de cara a ${proj.nome || 'la competición'}. ${proj.bandeira || '🩰'}\n\nMe gustaría saber si pudieron revisar nuestro dossier o si necesitan información adicional.\n\n¡Muchas gracias por su tiempo!`;
+  }
+
+  // Link do dossier: personalizado com o nome da empresa quando o projeto tem template
+  function linkDossierEmpresa(empresa, p) {
+    const proj = p || projetoAtivo || {};
+    const base = proj.url_base || 'https://flash-li-patrocinios.vercel.app';
+    if (proj.dossier_template) return `${base}/api/dossier?t=${proj.dossier_template}&empresa=${encodeURIComponent(empresa?.nome || '')}`;
+    return proj.dossier_url || `${base}/Dossier_Matilde_Mota.pdf`;
+  }
+  function dataDaquiA(dias) {
+    const d = new Date(); d.setDate(d.getDate() + dias); return d.toISOString().split('T')[0];
+  }
+  function dadosProjetoEmail() {
+    const p = projetoAtivo || {};
+    return { bandeira: p.bandeira, cidade: p.cidade, pais: p.pais, evento: p.evento, ano: p.ano, escola: p.escola, gestor: p.gestor, gestor_whatsapp: p.gestor_whatsapp, atletas: p.atletas, dossier_url: p.dossier_url, dossier_template: p.dossier_template, destaques: p.destaques, url_base: p.url_base, nome: p.nome };
   }
 
   const [msgPropostaPT, setMsgPropostaPT] = useState('');
@@ -171,7 +186,7 @@ export default function App() {
 
   function abrirNovoProj() {
     setEditandoProjeto(null);
-    setNovoProj({ nome:'', evento:'', ano: new Date().getFullYear()+1, cidade:'', pais:'', bandeira:'🏳️', meta_objetivo:3000, atletas:'', escola:'Flash Li Dance School', gestor:'Hugo', gestor_whatsapp:'+351 924 368 517', dossier_url:'', url_base:'https://flash-li-patrocinios.vercel.app' });
+    setNovoProj({ nome:'', evento:'', ano: new Date().getFullYear()+1, cidade:'', pais:'', bandeira:'🏳️', meta_objetivo:3000, atletas:'', escola:'Flash Li Dance School', gestor:'Hugo', gestor_whatsapp:'+351 924 368 517', dossier_url:'', dossier_template:'', destaques:'', url_base:'https://flash-li-patrocinios.vercel.app' });
     setShowProjetoModal(true);
   }
 
@@ -280,13 +295,24 @@ export default function App() {
     else { setEmpresas(empresas.filter(emp => emp.id !== id)); showMessage('🗑️ Eliminada!', 'success'); }
   }
 
-  async function enviarProposta(empresa) {
+  async function enviarProposta(empresa, tipo = 'proposta') {
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
-    showMessage(`A enviar proposta por email para ${empresa.nome}...`, 'info');
+    const ehFollow = tipo === 'followup';
+    showMessage(`A enviar ${ehFollow ? 'follow-up' : 'proposta'} por email para ${empresa.nome}...`, 'info', 0);
     try {
-      const res = await fetch('/api/send-proposal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, pais: projetoAtivo?.pais, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, atletas: projetoAtivo?.atletas, dossier_url: projetoAtivo?.dossier_url, url_base: projetoAtivo?.url_base, nome: projetoAtivo?.nome } }) });
+      const res = await fetch('/api/send-proposal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, tipo, projeto: dadosProjetoEmail() }) });
       const json = await res.json().catch(() => ({}));
-      if (res.ok) { showMessage(`✅ Email enviado com sucesso!`, 'success'); updateCampo(empresa.id, 'proposta_enviada_em', new Date().toISOString()); }
+      if (res.ok) {
+        const agora = new Date().toISOString();
+        // Próximo lembrete automático daqui a 7 dias
+        const alteracoes = ehFollow
+          ? { followup_enviado_em: agora, data_followup: dataDaquiA(7) }
+          : { proposta_enviada_em: agora, data_followup: (empresa.data_followup && empresa.data_followup > dataDaquiA(0)) ? empresa.data_followup : dataDaquiA(7) };
+        setEmpresas(prev => prev.map(emp => emp.id === empresa.id ? { ...emp, ...alteracoes } : emp));
+        const { error } = await supabase.from('patrocinadores').update(alteracoes).eq('id', empresa.id);
+        if (error) showMessage('⚠️ Email enviado, mas não consegui guardar a data: ' + error.message, 'error');
+        else showMessage(`✅ ${ehFollow ? 'Follow-up' : 'Proposta'} enviado${json.anexo ? ' com o dossier personalizado em anexo' : ''}! Lembrete marcado para daqui a 7 dias.`, 'success');
+      }
       else showMessage(`❌ Falha no envio: ${json.error || res.statusText}`, 'error');
     } catch (err) { showMessage('Erro técnico.', 'error'); }
   }
@@ -295,7 +321,7 @@ export default function App() {
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A pedir dados e logo a ${empresa.nome}...`, 'info');
     try {
-      const res = await fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: { bandeira: projetoAtivo?.bandeira, cidade: projetoAtivo?.cidade, evento: projetoAtivo?.evento, ano: projetoAtivo?.ano, escola: projetoAtivo?.escola, gestor: projetoAtivo?.gestor, atletas: projetoAtivo?.atletas, url_base: projetoAtivo?.url_base, nome: projetoAtivo?.nome } }) });
+      const res = await fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...empresa, projeto: dadosProjetoEmail() }) });
       const json = await res.json().catch(() => ({}));
       if (res.ok) showMessage(`✅ Pedido enviado com sucesso!`, 'success');
       else showMessage(`❌ Falha no envio: ${json.error || res.statusText}`, 'error');
@@ -308,7 +334,7 @@ export default function App() {
     let baseMsg = empresa.idioma === 'ES'
       ? (msgPropostaES || getDefaultPropES())
       : (msgPropostaPT || getDefaultPropPT());
-    let finalMsg = baseMsg.replace(/{nome}/g, empresa.nome);
+    let finalMsg = baseMsg.replace(/{nome}/g, empresa.nome).replace(/{dossier}/g, linkDossierEmpresa(empresa));
     return `https://wa.me/${numero}?text=${encodeURIComponent(finalMsg)}`;
   }
 
@@ -488,9 +514,9 @@ export default function App() {
   }
 
   function exportToCSV() {
-    const headers = ['Nome', 'Email', 'Telefone', 'Idioma', 'Estado', 'Valor (€)', 'Escalão', 'Recibo Emitido', 'Logo Recebido', 'Redes Sociais', 'Data Follow-up', 'Notas'];
+    const headers = ['Nome', 'Email', 'Telefone', 'Idioma', 'Estado', 'Valor (€)', 'Escalão', 'Recibo Emitido', 'Logo Recebido', 'Redes Sociais', 'Data Follow-up', 'NIF', 'Morada', 'Email Recibo', 'Notas'];
     const esc = v => '"' + String(v || '').replace(/"/g, '""') + '"';
-    const rows = empresas.map(emp => [ esc(emp.nome), esc(emp.email || ''), esc(emp.telefone || ''), emp.idioma, emp.status, emp.valor || 0, getEscalao(emp.valor).nome, emp.recibo_enviado ? 'Sim' : 'Não', emp.logo_recebido ? 'Sim' : 'Não', emp.redes_sociais ? 'Sim' : 'Não', emp.data_followup || '', esc(emp.notas || '') ]);
+    const rows = empresas.map(emp => [ esc(emp.nome), esc(emp.email || ''), esc(emp.telefone || ''), emp.idioma, emp.status, emp.valor || 0, getEscalao(emp.valor).nome, emp.recibo_enviado ? 'Sim' : 'Não', emp.logo_recebido ? 'Sim' : 'Não', emp.redes_sociais ? 'Sim' : 'Não', emp.data_followup || '', esc(emp.nif || ''), esc(emp.morada || ''), esc(emp.email_recibo || ''), esc(emp.notas || '') ]);
     const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -601,7 +627,7 @@ export default function App() {
               <h2 style={{ margin: 0, fontSize: '20px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={20}/> Textos do WhatsApp</h2>
               <button onClick={() => setShowSettings(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
             </div>
-            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>Usa a tag <b>{`{nome}`}</b> no texto para a App substituir automaticamente pelo nome da empresa.</p>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>Usa a tag <b>{`{nome}`}</b> para o nome da empresa e <b>{`{dossier}`}</b> para o link do dossier (personalizado com o nome da empresa).</p>
             <form onSubmit={guardarSettings}>
               <div className="form-group"><label>📄 Mensagem de Proposta (PT)</label><textarea rows="3" value={msgPropostaPT} onChange={e => setMsgPropostaPT(e.target.value)} required></textarea></div>
               <div className="form-group"><label>📄 Mensagem de Proposta (ES)</label><textarea rows="3" value={msgPropostaES} onChange={e => setMsgPropostaES(e.target.value)} required></textarea></div>
@@ -645,6 +671,12 @@ export default function App() {
                   <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.recibo_enviado} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, recibo_enviado: e.target.checked})} /> Recibo Emitido</label>
                   <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.logo_recebido} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, logo_recebido: e.target.checked})} /> Logotipo Recebido</label>
                   <label className="task-checkbox"><input type="checkbox" checked={empresaEmEdicao.redes_sociais} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, redes_sociais: e.target.checked})} /> Post nas Redes Sociais</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#475569', margin: '14px 0 8px 0' }}>Dados para o Recibo</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div className="form-group"><label>NIF</label><input type="text" inputMode="numeric" value={empresaEmEdicao.nif || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, nif: e.target.value})} /></div>
+                    <div className="form-group"><label>Email para o recibo</label><input type="email" value={empresaEmEdicao.email_recibo || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, email_recibo: e.target.value})} /></div>
+                    <div className="form-group" style={{ gridColumn: 'span 2' }}><label>Morada</label><input type="text" value={empresaEmEdicao.morada || ''} onChange={e => setEmpresaEmEdicao({...empresaEmEdicao, morada: e.target.value})} /></div>
+                  </div>
                 </div>
               )}
               <div className="form-group" style={{ marginTop: '10px' }}>
@@ -730,6 +762,22 @@ export default function App() {
                   <input type="text" placeholder="ex: Matilde Mota, Ana Silva"
                     value={novoProj.atletas}
                     onChange={e => setNovoProj({...novoProj, atletas: e.target.value})} />
+                </div>
+
+                {/* DOSSIER PERSONALIZADO */}
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>Dossier personalizado (nome da empresa no título)</label>
+                  <select value={novoProj.dossier_template || ''} onChange={e => setNovoProj({...novoProj, dossier_template: e.target.value})}>
+                    <option value="">— Não usar (envia só o link abaixo) —</option>
+                    <option value="matilde-dwc2026">Matilde Mota — DWC 2026 Dublin</option>
+                  </select>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Quando escolhido, cada email leva o PDF com o nome da empresa em anexo, e o WhatsApp envia o link personalizado.</div>
+                </div>
+
+                {/* DESTAQUES */}
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>Resultados em destaque no email (um por linha)</label>
+                  <textarea rows="3" placeholder={"ex: 24 pódios e 15 Medalhas de Ouro na final nacional"} value={novoProj.destaques || ''} onChange={e => setNovoProj({...novoProj, destaques: e.target.value})}></textarea>
                 </div>
 
                 {/* DOSSIER */}
@@ -907,6 +955,8 @@ export default function App() {
                   {emp.status !== 'Aceitou' && emp.email && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Send size={14}/> Email Proposta</button>}
                   {emp.status !== 'Aceitou' && emp.telefone && <a onClick={() => updateCampo(emp.id, 'proposta_enviada_em', new Date().toISOString())} href={getWhatsAppPropostaLink(emp)} target="_blank" className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><MessageCircle size={14}/> WA Proposta</a>}
                   {(emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.telefone && emp.proposta_enviada_em && <a href={getWhatsAppFollowUpLink(emp)} target="_blank" className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#128C7E', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><MessageCircle size={14}/> WA Follow-up</a>}
+                  {(emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.email && emp.proposta_enviada_em && <button onClick={() => enviarProposta(emp, 'followup')} className="btn-hover" style={{ flex: '1 1 120px', padding: '10px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Repeat size={14}/> Email Follow-up</button>}
+                  {projetoAtivo?.dossier_template && <a href={linkDossierEmpresa(emp)} target="_blank" rel="noreferrer" className="btn-hover" title="Ver dossier personalizado" style={{ padding: '10px', background: '#fef3c7', color: '#92400e', textDecoration: 'none', borderRadius: '8px', flexShrink: 0, display: 'flex', alignItems: 'center' }}><FileText size={16}/></a>}
                   <button onClick={() => abrirModalEdicao(emp)} className="btn-hover" style={{ padding: '10px', background: '#1e293b', color: 'white', border: 'none', borderRadius: '8px', flexShrink: 0 }}><PenTool size={16}/></button>
                   <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', flexShrink: 0 }}><Trash2 size={16}/></button>
                 </div>
@@ -935,6 +985,7 @@ export default function App() {
                           <option value="Pendente">⏳ Pendente</option><option value="Em Análise">🤔 Em Análise</option><option value="Aceitou">✅ Aceitou</option><option value="Recusou">❌ Recusou</option>
                         </select>
                         {emp.proposta_enviada_em && <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '5px' }}>✓ Proposta Enviada</div>}
+                        {emp.followup_enviado_em && <div style={{ fontSize: '11px', color: '#6366f1', marginTop: '2px' }}>✓ Follow-up {new Date(emp.followup_enviado_em).toLocaleDateString('pt-PT')}</div>}
                       </td>
                       <td style={{ padding: '15px', width: '35%', verticalAlign: 'top' }}>
                         {emp.status === 'Aceitou' ? (
@@ -956,6 +1007,8 @@ export default function App() {
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap', maxWidth: '160px', marginLeft: 'auto' }}>
                           {emp.status !== 'Aceitou' && emp.email && <button onClick={() => enviarProposta(emp)} className="btn-hover" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Email da Proposta"><Send size={16}/></button>}
                           {emp.status !== 'Aceitou' && emp.telefone && <a onClick={() => updateCampo(emp.id, 'proposta_enviada_em', new Date().toISOString())} href={getWhatsAppPropostaLink(emp)} target="_blank" className="btn-hover" style={{ padding: '10px', background: '#25D366', color: 'white', textDecoration: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="WhatsApp"><MessageCircle size={16}/></a>}
+                          {(emp.status === 'Pendente' || emp.status === 'Em Análise') && emp.email && emp.proposta_enviada_em && <button onClick={() => enviarProposta(emp, 'followup')} className="btn-hover" style={{ padding: '10px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Enviar Follow-up por Email"><Repeat size={16}/></button>}
+                          {projetoAtivo?.dossier_template && <a href={linkDossierEmpresa(emp)} target="_blank" rel="noreferrer" className="btn-hover" style={{ padding: '10px', background: '#fef3c7', color: '#92400e', textDecoration: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Ver dossier personalizado"><FileText size={16}/></a>}
                           <button onClick={() => abrirModalEdicao(emp)} className="btn-hover" style={{ padding: '10px', background: '#1e293b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Editar Completamente"><PenTool size={16}/></button>
                           <button onClick={() => eliminarEmpresa(emp.id, emp.nome)} className="btn-hover" style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Eliminar"><Trash2 size={16}/></button>
                         </div>
