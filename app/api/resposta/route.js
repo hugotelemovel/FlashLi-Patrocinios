@@ -80,7 +80,7 @@ export async function GET(request) {
     <h1 style="color:#1a1a1a;font-size:22px;margin:0 0 14px 0;">${titulo}</h1>
     <p style="font-size:15px;line-height:1.6;color:#475569;margin:0 0 28px 0;">${msg}</p>
     <div style="background:#f8fafc;border-radius:10px;padding:14px;font-size:12px;color:#94a3b8;">
-      Flash Li Dance School • Dublin 2026 🇮🇪
+      Flash Li Dance School
     </div>
   </div>
 </body>

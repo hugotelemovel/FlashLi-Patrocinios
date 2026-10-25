@@ -38,14 +38,14 @@ export async function POST(request) {
   const ano = projeto.ano || 2026;
   const cidade = projeto.cidade || "Dublin";
   const bandeira = projeto.bandeira || "🇮🇪";
-  const escola = projeto.escola || "${escola}";
+  const escola = projeto.escola || "Flash Li Dance School";
   const gestor = projeto.gestor || "Hugo";
   const baseUrl = projeto.url_base || "https://flash-li-patrocinios.vercel.app";
 
   if (!assunto?.trim()) return new Response(JSON.stringify({ error: 'O assunto não pode estar vazio.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   if (!mensagem?.trim()) return new Response(JSON.stringify({ error: 'A mensagem não pode estar vazia.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
 
-  const alvosValidos = empresas.filter(e => e.email && e.email.includes('@'));
+  const alvosValidos = (Array.isArray(empresas) ? empresas : []).filter(e => e.email && e.email.includes('@'));
   if (alvosValidos.length === 0) return new Response(JSON.stringify({ error: 'Nenhum destinatário tem email válido.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
 
   const transporter = nodemailer.createTransport({
@@ -182,7 +182,7 @@ export async function POST(request) {
     <div style="border-top:1px solid #e2e8f0;padding-top:18px;">
       <p style="color:#64748b;font-size:13px;margin:0 0 2px 0;">Com os melhores cumprimentos,</p>
       <p style="color:#1a1a1a;font-size:15px;font-weight:bold;margin:5px 0 2px 0;">${esc(gestor)}</p>
-      <p style="color:#94a3b8;font-size:12px;margin:0;">Gestão de Patrocínios — ${escola}</p>
+      <p style="color:#94a3b8;font-size:12px;margin:0;">Gestão de Patrocínios — ${esc(escola)}</p>
     </div>
   </div>
 
