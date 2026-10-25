@@ -24,8 +24,6 @@ CREATE TABLE IF NOT EXISTS projetos (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 
-ALTER TABLE projetos DISABLE ROW LEVEL SECURITY;
-
 -- 2. ADICIONAR projeto_id às tabelas existentes (se não existir)
 DO $$
 BEGIN
@@ -96,7 +94,7 @@ CREATE INDEX IF NOT EXISTS idx_historico_projeto ON historico_novidades(projeto_
 
 -- 6. CRIAR PROJETO INICIAL: DWCup 2026 Dublin
 INSERT INTO projetos (nome, evento, ano, cidade, pais, bandeira, meta_objetivo, atletas, escola, gestor, gestor_whatsapp, dossier_url, url_base)
-VALUES (
+SELECT
   'DWCup 2026 Dublin',
   'DWCup',
   2026,
@@ -110,7 +108,7 @@ VALUES (
   '+351 924 368 517',
   'https://flash-li-patrocinios.vercel.app/Dossier_Matilde_Mota.pdf',
   'https://flash-li-patrocinios.vercel.app'
-);
+WHERE NOT EXISTS (SELECT 1 FROM projetos WHERE nome = 'DWCup 2026 Dublin');
 
 -- 7. MIGRAR DADOS EXISTENTES para o projeto criado
 DO $$
@@ -126,6 +124,7 @@ END $$;
 -- 8. DOSSIER PERSONALIZADO, FOLLOW-UP POR EMAIL E DADOS DE FATURAÇÃO (out/2026)
 ALTER TABLE projetos ADD COLUMN IF NOT EXISTS dossier_template text;   -- ex: 'matilde-dwc2026' (ver lib/dossier.js)
 ALTER TABLE projetos ADD COLUMN IF NOT EXISTS destaques text;          -- resultados em destaque no email, um por linha
+ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS proposta_enviada_em timestamptz;
 ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS followup_enviado_em timestamptz;
 ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS nif text;
 ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS morada text;

@@ -813,6 +813,7 @@ export default function App() {
                   <select value={novoProj.dossier_template || ''} onChange={e => setNovoProj({...novoProj, dossier_template: e.target.value})}>
                     <option value="">— Não usar (envia só o link abaixo) —</option>
                     <option value="matilde-dwc2026">Matilde Mota — DWC 2026 Dublin</option>
+                    <option value="matilde-dwc2027-lisboa">Matilde Mota — DWC 2027 Lisboa</option>
                   </select>
                   <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Quando escolhido, cada email leva o PDF com o nome da empresa em anexo, e o WhatsApp envia o link personalizado.</div>
                 </div>
