@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { rodapeLegal, cabecalhosRemover } from '../../../lib/email-rodape';
 import { exigirAdmin } from '../../../lib/auth-server';
 
 // Escape HTML para evitar XSS nos emails
@@ -45,7 +46,7 @@ export async function POST(request) {
   if (!assunto?.trim()) return new Response(JSON.stringify({ error: 'O assunto não pode estar vazio.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   if (!mensagem?.trim()) return new Response(JSON.stringify({ error: 'A mensagem não pode estar vazia.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
 
-  const alvosValidos = (Array.isArray(empresas) ? empresas : []).filter(e => e.email && e.email.includes('@'));
+  const alvosValidos = (Array.isArray(empresas) ? empresas : []).filter(e => e.email && e.email.includes('@') && !e.nao_contactar);
   if (alvosValidos.length === 0) return new Response(JSON.stringify({ error: 'Nenhum destinatário tem email válido.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
 
   const transporter = nodemailer.createTransport({
@@ -143,7 +144,8 @@ export async function POST(request) {
       await transporter.sendMail({
         from: `"${escola}" <${process.env.EMAIL_USER}>`,
         to: empresa.email,
-        subject: esc(assunto),
+        subject: String(assunto).trim(),
+        headers: cabecalhosRemover(baseUrl, empresa.id, process.env.EMAIL_USER),
         html: `
 <!DOCTYPE html>
 <html>
@@ -189,6 +191,7 @@ export async function POST(request) {
   <div style="background:#f8fafc;padding:13px 28px;text-align:center;border-top:1px solid #e2e8f0;">
     <div style="font-size:11px;color:#94a3b8;">${esc(escola)} • ${cidade} ${ano} ${bandeira} • ${baseUrl.replace(/^https?:\/\//, "")}</div>
   </div>
+  ${rodapeLegal({ baseUrl, empresaId: empresa.id, escola, gestor, emailRemetente: process.env.EMAIL_USER, isES: empresa.idioma === 'ES' })}
 
 </div>
 </body>

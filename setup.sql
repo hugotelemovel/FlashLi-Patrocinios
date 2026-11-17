@@ -134,3 +134,22 @@ ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS email_recibo text;
 -- Ver migrações no Supabase: auth_admins_e_funcoes_publicas, rls_so_admins.
 -- Tabela admins (quem pode usar o CRM), função is_admin(), registar_resposta() (botões do email, sem login),
 -- ping() (keepalive) e políticas RLS "só admins" em projetos, patrocinadores, historico_novidades e storage 'fotos'.
+
+-- 10. PEDIDOS PARA NÃO SER CONTACTADO (nov/2026) — link "Não quero receber mais emails"
+ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS nao_contactar boolean NOT NULL DEFAULT false;
+ALTER TABLE patrocinadores ADD COLUMN IF NOT EXISTS nao_contactar_em timestamptz;
+
+CREATE OR REPLACE FUNCTION public.cancelar_contactos(p_id uuid)
+RETURNS TABLE(nome text, email text) LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+begin
+  return query
+    update public.patrocinadores pa
+       set nao_contactar = true, nao_contactar_em = coalesce(pa.nao_contactar_em, now())
+     where pa.id = p_id
+    returning pa.nome, pa.email;
+end $$;
+REVOKE ALL ON FUNCTION public.cancelar_contactos(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.cancelar_contactos(uuid) TO anon, authenticated;
+
+-- Função interna do Supabase (event trigger) não precisa de ser chamável pela API pública
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC, anon, authenticated;
