@@ -1,10 +1,10 @@
-# 🏆 Flash Li CRM - Angariação DWCup 2026 (Dublin)
+# 🏆 Flash Li CRM - Angariação de Patrocínios (multi-projeto)
 
 ![Status](https://img.shields.io/badge/Status-Ativo_e_em_Produção-success)
 ![Versão](https://img.shields.io/badge/Versão-Ultimate_Enterprise-gold)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Web_%26_Mobile-blue)
 
-Uma aplicação **Full-Stack** (CRM + Sistema de Email Marketing) desenvolvida à medida para gerir a angariação de patrocínios da **Flash Li Dance School** rumo à **Dance World Cup 2026 em Dublin**.
+Uma aplicação **Full-Stack** (CRM + Sistema de Email Marketing) desenvolvida à medida para gerir a angariação de patrocínios da **Flash Li Dance School** para várias competições (ex.: DWCup 2026 Dublin, DWCup 2027 Lisboa). Cada competição é um projeto independente, criado na própria app.
 
 Desenhada com uma filosofia *Mobile-First* e uma estética *Premium* (Preto e Dourado), a app permite gerir centenas de contactos, enviar propostas com 1 clique e manter os patrocinadores atualizados com um "Diário de Bordo" multimédia, usando o próprio Gmail do utilizador como motor de envio.
 

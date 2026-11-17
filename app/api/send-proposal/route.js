@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { rodapeLegal, cabecalhosRemover } from '../../../lib/email-rodape';
 import { exigirAdmin } from '../../../lib/auth-server';
 import { DOSSIERS, gerarDossierPDF, nomeFicheiroDossier } from '../../../lib/dossier';
 
@@ -44,6 +45,9 @@ export async function POST(request) {
     : `de las atletas <strong>${esc(atletas)}</strong>`;
 
   // BUG 8 + 9 — Validações obrigatórias
+  if (empresa.nao_contactar) {
+    return new Response(JSON.stringify({ error: 'Esta empresa pediu para não ser contactada por email.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+  }
   if (!empresa.email) {
     return new Response(JSON.stringify({ error: 'Email em falta.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
@@ -140,6 +144,7 @@ export async function POST(request) {
   <div style="background:#f8fafc;padding:12px 28px;text-align:center;border-top:1px solid #e2e8f0;">
     <div style="font-size:11px;color:#94a3b8;">${esc(escola)} • ${cidade} ${ano} ${bandeira} • ${baseUrl.replace(/^https?:\/\//, "")}</div>
   </div>
+  ${rodapeLegal({ baseUrl, empresaId: empresa.id, escola, gestor, emailRemetente: process.env.EMAIL_USER, isES })}
 </div>
 </body>
 </html>`;
@@ -173,6 +178,7 @@ export async function POST(request) {
       to: empresa.email,
       subject: assunto,
       html: corpoHTML,
+      headers: cabecalhosRemover(baseUrl, empresa.id, process.env.EMAIL_USER),
       attachments,
     });
     return new Response(JSON.stringify({ success: true, anexo: !!dossierChave }), { status: 200, headers: { 'Content-Type': 'application/json' } });

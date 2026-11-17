@@ -6,7 +6,8 @@ export const runtime = 'nodejs';
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const chave = searchParams.get('t') || '';
-  const empresa = searchParams.get('empresa') || '';
+  // Nome limitado a 80 caracteres: evita PDFs gigantes e limita variações que fogem à cache
+  const empresa = (searchParams.get('empresa') || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 80);
   if (!DOSSIERS[chave]) {
     return new Response(JSON.stringify({ error: 'Dossier não encontrado.' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
   }
@@ -19,10 +20,13 @@ export async function GET(request) {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `${disp}; filename="${nome}"; filename*=UTF-8''${encodeURIComponent(nome)}`,
-        'Cache-Control': 'public, max-age=3600',
+        // Cache no CDN da Vercel (1 dia): pedidos repetidos ao mesmo link não geram PDF nem gastam computação
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800',
+        'X-Robots-Tag': 'noindex',
       },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    console.error('Falha a gerar dossier:', err);
+    return new Response(JSON.stringify({ error: 'Falha a gerar o dossier.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }

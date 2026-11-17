@@ -136,6 +136,18 @@ export default function App() {
     // textos WhatsApp carregados ao mudar projeto (ver useEffect de projetoAtivo)
   }, [sessao?.user?.id]);
 
+  // Acessibilidade: a tecla Esc fecha qualquer janela aberta
+  useEffect(() => {
+    function aoTeclar(e) {
+      if (e.key !== 'Escape') return;
+      setShowSettings(false);
+      setShowProjetoModal(false);
+      setEmpresaEmEdicao(null);
+    }
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+  }, []);
+
   // Quando projeto muda, carregar dados e atualizar textos
   useEffect(() => {
     if (!projetoAtivo) return;
@@ -327,6 +339,7 @@ export default function App() {
   }
 
   async function enviarProposta(empresa, tipo = 'proposta') {
+    if (empresa.nao_contactar) return showMessage('🚫 Esta empresa pediu para não receber mais emails.', 'error');
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     const ehFollow = tipo === 'followup';
     showMessage(`A enviar ${ehFollow ? 'follow-up' : 'proposta'} por email para ${empresa.nome}...`, 'info', 0);
@@ -349,6 +362,7 @@ export default function App() {
   }
 
   async function enviarBoasVindas(empresa) {
+    if (empresa.nao_contactar) return showMessage('🚫 Esta empresa pediu para não receber mais emails.', 'error');
     if (!empresa.email) return showMessage('Esta empresa não tem email guardado!', 'error');
     showMessage(`A pedir dados e logo a ${empresa.nome}...`, 'info');
     try {
@@ -486,7 +500,8 @@ export default function App() {
     if (bDestinatarios === 'pendentes') alvos = empresas.filter(e => e.status === 'Pendente' || e.status === 'Em Análise');
     if (bDestinatarios === 'todos') alvos = empresas;
 
-    const alvosComEmail = alvos.filter(e => e.email && e.email.includes('@'));
+    // Empresas que pediram para não ser contactadas ficam sempre de fora
+    const alvosComEmail = alvos.filter(e => e.email && e.email.includes('@') && !e.nao_contactar);
     const semEmail = alvos.length - alvosComEmail.length;
 
     if (alvosComEmail.length === 0) return showMessage('❌ Nenhum destinatário deste grupo tem email registado.', 'error');
@@ -668,7 +683,7 @@ export default function App() {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #f1f5f9', paddingBottom: '15px' }}>
               <h2 style={{ margin: 0, fontSize: '20px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={20}/> Textos do WhatsApp</h2>
-              <button onClick={() => setShowSettings(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
+              <button onClick={() => setShowSettings(false)} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
             </div>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>Usa a tag <b>{`{nome}`}</b> para o nome da empresa e <b>{`{dossier}`}</b> para o link do dossier (personalizado com o nome da empresa).</p>
             <form onSubmit={guardarSettings}>
@@ -688,7 +703,7 @@ export default function App() {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #f1f5f9', paddingBottom: '15px' }}>
               <h2 style={{ margin: 0, fontSize: '20px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '8px' }}><Edit size={20}/> Editar Parceiro</h2>
-              <button onClick={fecharModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
+              <button onClick={fecharModal} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
             </div>
             <form onSubmit={guardarEdicaoTotal}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -741,7 +756,7 @@ export default function App() {
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #f1f5f9', paddingBottom: '15px' }}>
               <h2 style={{ margin: 0, fontSize: '20px', color: TEXT_PRIMARY }}>🗂️ {editandoProjeto ? 'Editar Projeto' : 'Novo Projeto'}</h2>
-              <button onClick={() => setShowProjetoModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
+              <button onClick={() => setShowProjetoModal(false)} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={24}/></button>
             </div>
             <form onSubmit={guardarProjeto}>
               <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 16px 0' }}>
@@ -813,6 +828,7 @@ export default function App() {
                   <select value={novoProj.dossier_template || ''} onChange={e => setNovoProj({...novoProj, dossier_template: e.target.value})}>
                     <option value="">— Não usar (envia só o link abaixo) —</option>
                     <option value="matilde-dwc2026">Matilde Mota — DWC 2026 Dublin</option>
+                    <option value="matilde-dwc2027-lisboa">Matilde Mota — DWC 2027 Lisboa</option>
                   </select>
                   <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Quando escolhido, cada email leva o PDF com o nome da empresa em anexo, e o WhatsApp envia o link personalizado.</div>
                 </div>
@@ -969,7 +985,7 @@ export default function App() {
               <div key={`mobile-${emp.id}`} className="mobile-card" style={{ borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : atrasado ? '4px solid #ef4444' : '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                   <div>
-                    <div style={{ fontWeight: '900', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '5px' }}>{emp.nome} {emp.status === 'Aceitou' && escalao.icon}</div>
+                    <div style={{ fontWeight: '900', fontSize: '16px', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', gap: '5px' }}>{emp.nome} {emp.status === 'Aceitou' && escalao.icon} {emp.nao_contactar && <span title="Pediu para não receber mais emails" style={{ fontSize: '11px', background: '#fee2e2', color: '#b91c1c', padding: '2px 6px', borderRadius: '6px', fontWeight: 'bold' }}>🚫 Não contactar</span>}</div>
                     <div style={{ fontSize: '12px', color: '#64748b' }}>{emp.email || 'S/ Email'} {emp.telefone && `• ${emp.telefone}`}</div>
                   </div>
                   <select value={emp.status} onChange={(e) => updateCampo(emp.id, 'status', e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 'bold', background: getStatusColor(emp.status) }}>
@@ -1021,7 +1037,7 @@ export default function App() {
                   return (
                     <tr key={`desktop-${emp.id}`} style={{ borderTop: '1px solid #f1f5f9', background: emp.status === 'Aceitou' ? '#f0fdf4' : 'white' }}>
                       <td style={{ padding: '15px', borderLeft: emp.status === 'Aceitou' ? `4px solid ${escalao.cor}` : '4px solid transparent', width: '25%', verticalAlign: 'top' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}>{emp.nome} {emp.status === 'Aceitou' && escalao.icon}</div>
+                        <div style={{ fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '5px' }}>{emp.nome} {emp.status === 'Aceitou' && escalao.icon} {emp.nao_contactar && <span title="Pediu para não receber mais emails" style={{ fontSize: '11px', background: '#fee2e2', color: '#b91c1c', padding: '2px 6px', borderRadius: '6px', fontWeight: 'bold' }}>🚫 Não contactar</span>}</div>
                         <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{emp.email || 'S/ Email'} <br/> {emp.telefone}</div>
                         {emp.notas && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px', fontStyle: 'italic' }}>{emp.notas.length > 50 ? emp.notas.substring(0, 50) + '…' : emp.notas}</div>}
                       </td>
@@ -1167,7 +1183,7 @@ export default function App() {
         if (bDestinatarios === 'aceites') alvosPreview = empresas.filter(e => e.status === 'Aceitou');
         if (bDestinatarios === 'pendentes') alvosPreview = empresas.filter(e => e.status === 'Pendente' || e.status === 'Em Análise');
         if (bDestinatarios === 'todos') alvosPreview = empresas;
-        const comEmail = alvosPreview.filter(e => e.email && e.email.includes('@'));
+        const comEmail = alvosPreview.filter(e => e.email && e.email.includes('@') && !e.nao_contactar);
         const semEmail = alvosPreview.length - comEmail.length;
 
         const tipoConfig = {
